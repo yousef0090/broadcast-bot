@@ -1,0 +1,21 @@
+server:
+  applicationConnectors:
+    - type: http
+      port: 8049
+    - type: https
+      port: 8050
+      keyStorePath: keystore.jks
+      keyStorePassword: 123456
+      certAlias: myservercert
+      validateCerts: false
+      validatePeers: false
+
+  adminConnectors:
+    - type: http
+      port: 8051
+#  requestLog:
+#    appenders: []
+
+auth: Bearer your_auth_token
+database: crypto/broadcast.db
+feedback:
