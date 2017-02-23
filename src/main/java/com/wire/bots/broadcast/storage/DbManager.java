@@ -1,3 +1,20 @@
+//
+// Wire
+// Copyright (C) 2016 Wire Swiss GmbH
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see http://www.gnu.org/licenses/.
+//
 package com.wire.bots.broadcast.storage;
 
 import com.wire.bots.broadcast.model.Broadcast;
@@ -5,15 +22,19 @@ import com.wire.bots.broadcast.model.Message;
 import com.wire.bots.sdk.Logger;
 import com.wire.bots.sdk.server.model.NewBot;
 
+import java.io.File;
 import java.sql.*;
-import java.util.Date;
 import java.util.ArrayList;
+import java.util.Date;
 
 public class DbManager {
     private final String path;
 
     public DbManager(String path) {
         this.path = path;
+
+        File dir = new File(path);
+        dir.mkdirs();
 
         try {
             Class.forName("org.sqlite.JDBC");

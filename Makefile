@@ -8,8 +8,10 @@ CSR_STATE		    := Berlin
 CSR_LOCALITY		:= Berlin
 CSR_ORGANISATION	:= My Company GmbH
 CSR_COMMON		    := company.com
+CSR_NAME            := myservercert
 KEYSTORE_PASSWORD	:= 123456
 KEYSTORE_FILE		:= keystore.jks
+
 
 ifeq ($(OS), darwin)
 PLATFORM := darwin
@@ -49,7 +51,7 @@ $(CERTS_DIR):
 generate_keystore: | $(CERTS_DIR)/$(KEYSTORE_FILE)
 
 $(CERTS_DIR)/$(KEYSTORE_FILE):
-	openssl pkcs12 -export -name myservercert -in $(CERTS_DIR)/cert.pem -inkey $(CERTS_DIR)/privkey.pem -out $(CERTS_DIR)/keystore.p12 -passout pass:$(KEYSTORE_PASSWORD)
+	openssl pkcs12 -export -name $(CSR_NAME) -in $(CERTS_DIR)/cert.pem -inkey $(CERTS_DIR)/privkey.pem -out $(CERTS_DIR)/keystore.p12 -passout pass:$(KEYSTORE_PASSWORD)
 	keytool -importkeystore -noprompt -destkeystore $(CERTS_DIR)/$(KEYSTORE_FILE) -srckeystore $(CERTS_DIR)/keystore.p12 -srcstorepass $(KEYSTORE_PASSWORD) -storepass $(KEYSTORE_PASSWORD) -srcstoretype pkcs12 -alias myservercert
 
 .PHONY: clean
