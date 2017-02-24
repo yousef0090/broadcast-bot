@@ -17,11 +17,11 @@ For clarity, if you compile the open source software that we make available from
 No license is granted to the Wire trademark and its associated logos, all of which will continue to be owned exclusively by Wire Swiss GmbH. Any use of the Wire trademark and/or its associated logos is expressly prohibited without the express prior written consent of Wire Swiss GmbH.
 
 # Broadcast bot
- This Bot can be used as broadcast channel for broad audience. In order to subscribe to a channel user should use the link:
-  https://wire.com/b/[channel_name]. There is no limitation as in number of subscribers or number of messages. 
-  Once the message is broadcast it will take couple of seconds to be delivered to all subscribers. 
-  Message can be: text, web page, picture (a url to jpg|png|gif), youtube link, soundcloud link ... 
-  All messages are stored in broadcast.db SQLite DB on the server. Incoming messages from the subscribers are also stored in broadcast.db. 
+This Bot can be used as broadcast channel to reach a broad audience. In order to subscribe to a channel user should use the link: https://wire.com/b/[channel_name]. There is no limitation in the number of subscribers to a channel or number of messages sent to them.
+ 
+Once the message is broadcast it will take couple of seconds to be delivered to all subscribers. Message can be: text, URL, picture (a url to jpg|png|gif), YouTube link, SoundCloud link, etc. There is currently no support to send audio or video files natively.
+
+All messages are stored in broadcast.db SQLite DB on the server. Incoming messages from the subscribers are also stored in broadcast.db. 
   
 ## Build the project
  Run: `$make linux` 
@@ -45,14 +45,13 @@ broadcast.jar
 broadcast.yaml
 keystore.jks
 ```
-files to your server. Notice that you will need a Public IP to serve as endpoint that will be called by the Wire Backend
+files to your server. Notice that you will need a Public IP to serve as endpoint that will be called by the Wire Backend.
 
 ## Run the bot
 Run: `$java -jar broadcast.jar server broadcast.yaml`
 
 ## Broadcast
-Go to: http://localhost:8049/assets/message.html and post your first message
+Go to: http://localhost:8049/assets/message.html and post your first message.
 
 ## Setup Feedback conversation
-In order to receive all the incoming messages from the subscribers you can select an existing conversation with the broadcast bot and let the service 
-channel all the messages there. Update `feedback` param in `broadcast.yaml` with the BotId. BotId can be extracted from the logs
+In order to receive all the incoming messages from the subscribers you can select an existing conversation with the broadcast bot and let the service channel all the messages there. Update `feedback` param in `broadcast.yaml` with the BotId. BotId can be extracted from the logs.
