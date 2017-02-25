@@ -35,6 +35,8 @@ import com.wire.bots.sdk.server.model.User;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 public class MessageHandler extends MessageHandlerBase {
@@ -42,12 +44,14 @@ public class MessageHandler extends MessageHandlerBase {
     private final DbManager dbManager;
     private final Config config;
     private final ClientRepo repo;
+    private final Timer timer;
 
     public MessageHandler(Config config, ClientRepo repo) {
         this.config = config;
         this.repo = repo;
 
         dbManager = new DbManager(config.getDatabase());
+        timer = new Timer();
     }
 
     @Override
@@ -72,9 +76,9 @@ public class MessageHandler extends MessageHandlerBase {
             m.setMimeType("text");
             dbManager.insertMessage(m);
 
-            client.sendReaction(msg.getMessageId(), "❤️");
-
             forwardFeedback(msg);
+
+            likeMessage(client, msg.getMessageId());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -97,7 +101,7 @@ public class MessageHandler extends MessageHandlerBase {
 
             forwardFeedback(msg);
 
-            client.sendReaction(msg.getMessageId(), "❤️");
+            likeMessage(client, msg.getMessageId());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -176,5 +180,18 @@ public class MessageHandler extends MessageHandlerBase {
 
             feedbackClient.sendPicture(picture);
         }
+    }
+
+    private void likeMessage(final WireClient client, final String messageId) {
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                try {
+                    client.sendReaction(messageId, "❤️");
+                } catch (Exception e) {
+                    Logger.error(e.getLocalizedMessage());
+                }
+            }
+        }, TimeUnit.SECONDS.toMillis(3));
     }
 }
