@@ -37,8 +37,6 @@ import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.sql.SQLException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -85,56 +83,65 @@ public class BroadcastResource {
 
         WireClient wireClient = repo.getWireClient(botDirs[0].getName());
 
-        if (isPicture(text)) {
-            final Picture picture = new Picture(text);
-            AssetKey assetKey = wireClient.uploadAsset(picture);
-            picture.setAssetKey(assetKey.key);
-            picture.setAssetToken(assetKey.token);
+        try {
+            if (isPicture(text)) {
+                final Picture picture = new Picture(text);
+                AssetKey assetKey = wireClient.uploadAsset(picture);
+                picture.setAssetKey(assetKey.key);
+                picture.setAssetToken(assetKey.token);
 
-            saveBroadcast(null, null, picture);
+                saveBroadcast(null, null, picture);
 
-            for (File botDir : botDirs) {
-                final String botId = botDir.getName();
-                executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        send(picture, botId);
-                    }
-                });
+                for (File botDir : botDirs) {
+                    final String botId = botDir.getName();
+                    executor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            send(picture, botId);
+                        }
+                    });
+                }
+            } else if (isUrl(text)) {
+                final String url = text.trim();
+                final String title = extractPageTitle(url);
+                final Picture preview = uploadPreview(wireClient, extractPagePreview(url));
+
+                saveBroadcast(url, title, preview);
+
+                for (File botDir : botDirs) {
+                    final String botId = botDir.getName();
+                    executor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            sendLink(url, title, preview, botId);
+                        }
+                    });
+                }
+            } else {
+                dbManager.insertBroadcast(text);
+
+                for (File botDir : botDirs) {
+                    final String botId = botDir.getName();
+                    executor.execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            send(text, botId);
+                        }
+                    });
+                }
             }
-        } else if (isUrl(text)) {
-            final String url = text.trim();
-            final String title = extractPageTitle(url);
-            final Picture preview = uploadPreview(wireClient, extractPagePreview(url));
-
-            saveBroadcast(url, title, preview);
-
-            for (File botDir : botDirs) {
-                final String botId = botDir.getName();
-                executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        sendLink(url, title, preview, botId);
-                    }
-                });
-            }
-        } else {
-            dbManager.insertBroadcast(text);
-
-            for (File botDir : botDirs) {
-                final String botId = botDir.getName();
-                executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        send(text, botId);
-                    }
-                });
-            }
+            return Response.
+                    ok(String.format("Scheduled broadcast for %,d conversations", botDirs.length)).
+                    status(201).
+                    build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            Logger.error(e.getLocalizedMessage());
+            return Response.
+                    ok(String.format("Something went terribly wrong: %s", e.getLocalizedMessage())).
+                    status(500).
+                    build();
         }
-        return Response.
-                ok(String.format("Scheduled broadcast for %,d conversations", botDirs.length)).
-                status(201).
-                build();
     }
 
     private String extractPagePreview(String url) throws IOException {
@@ -159,19 +166,23 @@ public class BroadcastResource {
         return doc.title();
     }
 
-    private void saveBroadcast(String url, String title, Picture preview) throws NoSuchAlgorithmException, SQLException {
-        // save to db
-        Broadcast broadcast = new Broadcast();
-        broadcast.setAssetData(preview.getImageData());
-        broadcast.setAssetKey(preview.getAssetKey());
-        broadcast.setToken(preview.getAssetToken());
-        broadcast.setOtrKey(preview.getOtrKey());
-        broadcast.setSha256(preview.getSha256());
-        broadcast.setSize(preview.getSize());
-        broadcast.setMimeType(preview.getMimeType());
-        broadcast.setUrl(url);
-        broadcast.setTitle(title);
-        dbManager.insertBroadcast(broadcast);
+    private void saveBroadcast(String url, String title, Picture preview) {
+        try {
+            // save to db
+            Broadcast broadcast = new Broadcast();
+            broadcast.setAssetData(preview.getImageData());
+            broadcast.setAssetKey(preview.getAssetKey());
+            broadcast.setToken(preview.getAssetToken());
+            broadcast.setOtrKey(preview.getOtrKey());
+            broadcast.setSha256(preview.getSha256());
+            broadcast.setSize(preview.getSize());
+            broadcast.setMimeType(preview.getMimeType());
+            broadcast.setUrl(url);
+            broadcast.setTitle(title);
+            dbManager.insertBroadcast(broadcast);
+        } catch (Exception e) {
+            Logger.error(e.getLocalizedMessage());
+        }
     }
 
     static boolean isUrl(String text) {

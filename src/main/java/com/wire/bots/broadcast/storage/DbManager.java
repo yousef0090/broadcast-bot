@@ -137,15 +137,15 @@ public class DbManager {
 
     public int insertBroadcast(String text) throws SQLException {
         try (Connection connection = getConnection()) {
-            Statement statement = connection.createStatement();
+            String cmd = "INSERT INTO Broadcast " +
+                    "(Text, Time) " +
+                    "VALUES(?, ?)";
 
-            String cmd = String.format("INSERT INTO Broadcast " +
-                            "(Text, Time) " +
-                            "VALUES('%s', %d)",
-                    text,
-                    new Date().getTime() / 1000);
+            PreparedStatement stm = connection.prepareStatement(cmd);
+            stm.setString(1, text);
+            stm.setLong(2, new Date().getTime() / 1000);
 
-            return statement.executeUpdate(cmd);
+            return stm.executeUpdate();
         }
     }
 
@@ -201,25 +201,21 @@ public class DbManager {
 
     public int insertUser(NewBot newBot) throws SQLException {
         try (Connection connection = getConnection()) {
-            Statement statement = connection.createStatement();
+            String cmd = "INSERT INTO User " +
+                    "(BotId, UserId, Locale , Time, Name) " +
+                    "VALUES(?, ?, ?, ?, ?)";
+            PreparedStatement stm = connection.prepareStatement(cmd);
+            stm.setString(1, newBot.id);
+            stm.setString(2, newBot.origin.id);
+            stm.setString(3, newBot.locale);
+            stm.setString(4, newBot.origin.name);
+            stm.setLong(5, new Date().getTime() / 1000);
 
-            String cmd = String.format("INSERT INTO User " +
-                            "(BotId, UserId, Locale , Time, Name) " +
-                            "VALUES('%s', '%s', '%s', '%s', %d)",
-                    newBot.id,
-                    newBot.origin.id,
-                    newBot.locale,
-                    newBot.origin.name,
-                    new Date().getTime() / 1000
-            );
-
-            return statement.executeUpdate(cmd);
+            return stm.executeUpdate(cmd);
         }
     }
 
     private Connection getConnection() throws SQLException {
         return DriverManager.getConnection(String.format("jdbc:sqlite:%s", path));
     }
-
-
 }

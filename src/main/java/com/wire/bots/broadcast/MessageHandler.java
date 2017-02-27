@@ -56,12 +56,15 @@ public class MessageHandler extends MessageHandlerBase {
 
     @Override
     public boolean onNewBot(NewBot newBot) {
-        Logger.info(String.format("onNewBot: bot: %s, origin: %s", newBot.id, newBot.origin.id));
-
         try {
-            dbManager.insertUser(newBot);
-        } catch (SQLException e) {
+            Logger.info(String.format("onNewBot: bot: %s, origin: %s", newBot.id, newBot.origin.id));
+
+            saveNewBot(newBot);
+
+            newUserFeedback(newBot.origin.id);
+        } catch (Exception e) {
             e.printStackTrace();
+            Logger.error(e.getLocalizedMessage());
         }
         return true;
     }
@@ -69,41 +72,32 @@ public class MessageHandler extends MessageHandlerBase {
     @Override
     public void onText(WireClient client, TextMessage msg) {
         try {
-            Message m = new Message();
-            m.setBotId(client.getId());
-            m.setUserId(msg.getUserId());
-            m.setText(msg.getText());
-            m.setMimeType("text");
-            dbManager.insertMessage(m);
+            String botId = client.getId();
+
+            saveMessage(botId, msg);
 
             forwardFeedback(msg);
 
             likeMessage(client, msg.getMessageId());
         } catch (Exception e) {
             e.printStackTrace();
+            Logger.error(e.getLocalizedMessage());
         }
     }
 
     @Override
     public void onImage(WireClient client, ImageMessage msg) {
         try {
-            Message m = new Message();
-            m.setBotId(client.getId());
-            m.setUserId(msg.getUserId());
-            m.setAssetKey(msg.getAssetKey());
-            m.setToken(msg.getAssetToken());
-            m.setOtrKey(msg.getOtrKey());
-            m.setSha256(msg.getSha256());
-            m.setSize(msg.getSize());
-            m.setTime(new Date().getTime() / 1000);
-            m.setMimeType(msg.getMimeType());
-            dbManager.insertMessage(m);
+            String botId = client.getId();
+
+            saveMessage(botId, msg);
 
             forwardFeedback(msg);
 
             likeMessage(client, msg.getMessageId());
         } catch (Exception e) {
             e.printStackTrace();
+            Logger.error(e.getLocalizedMessage());
         }
     }
 
@@ -139,6 +133,22 @@ public class MessageHandler extends MessageHandlerBase {
         } catch (Exception e) {
             e.printStackTrace();
             Logger.error(e.getMessage());
+        }
+    }
+
+    @Override
+    public void onMemberLeave(WireClient ignored, ArrayList<String> userIds) {
+        try {
+            String botId = config.getFeedback();
+            if (botId != null) {
+                WireClient feedbackClient = repo.getWireClient(botId);
+                for (User user : feedbackClient.getUsers(userIds)) {
+                    String feedback = String.format("**%s** left", user.name);
+                    feedbackClient.sendText(feedback);
+                }
+            }
+        } catch (Exception e) {
+            Logger.error(e.getLocalizedMessage());
         }
     }
 
@@ -182,6 +192,20 @@ public class MessageHandler extends MessageHandlerBase {
         }
     }
 
+    private void newUserFeedback(String userId) throws Exception {
+        String botId = config.getFeedback();
+        if (botId == null)
+            return;
+
+        WireClient feedbackClient = repo.getWireClient(botId);
+        ArrayList<String> ids = new ArrayList<>();
+        ids.add(userId);
+        for (User user : feedbackClient.getUsers(ids)) {
+            String feedback = String.format("**%s** just joined", user.name);
+            feedbackClient.sendText(feedback);
+        }
+    }
+
     private void likeMessage(final WireClient client, final String messageId) {
         timer.schedule(new TimerTask() {
             @Override
@@ -192,6 +216,46 @@ public class MessageHandler extends MessageHandlerBase {
                     Logger.error(e.getLocalizedMessage());
                 }
             }
-        }, TimeUnit.SECONDS.toMillis(3));
+        }, TimeUnit.SECONDS.toMillis(5));
     }
+
+    private void saveMessage(String botId, ImageMessage msg) throws SQLException {
+        try {
+            Message m = new Message();
+            m.setBotId(botId);
+            m.setUserId(msg.getUserId());
+            m.setAssetKey(msg.getAssetKey());
+            m.setToken(msg.getAssetToken());
+            m.setOtrKey(msg.getOtrKey());
+            m.setSha256(msg.getSha256());
+            m.setSize(msg.getSize());
+            m.setTime(new Date().getTime() / 1000);
+            m.setMimeType(msg.getMimeType());
+            dbManager.insertMessage(m);
+        } catch (SQLException e) {
+            Logger.error(e.getSQLState() + ". " + e.getLocalizedMessage());
+        }
+    }
+
+    private void saveMessage(String botId, TextMessage msg) {
+        try {
+            Message m = new Message();
+            m.setBotId(botId);
+            m.setUserId(msg.getUserId());
+            m.setText(msg.getText());
+            m.setMimeType("text");
+            dbManager.insertMessage(m);
+        } catch (SQLException e) {
+            Logger.error(e.getSQLState() + ". " + e.getLocalizedMessage());
+        }
+    }
+
+    private void saveNewBot(NewBot newBot) {
+        try {
+            dbManager.insertUser(newBot);
+        } catch (SQLException e) {
+            Logger.error(e.getSQLState() + ". " + e.getLocalizedMessage());
+        }
+    }
+
 }
