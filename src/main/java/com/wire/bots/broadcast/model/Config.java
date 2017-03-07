@@ -18,9 +18,14 @@
 
 package com.wire.bots.broadcast.model;
 
+import java.util.HashSet;
+
 public class Config extends com.wire.bots.sdk.Configuration {
-    private String database;
+    private String database = "crypto/broadcast.db";
     private String feedback;
+    private HashSet<String> whitelist;
+    private String onNewSubscriberLabel;
+    private long fallback;
 
     public String getDatabase() {
         return database;
@@ -36,5 +41,29 @@ public class Config extends com.wire.bots.sdk.Configuration {
 
     public void setFeedback(String feedback) {
         this.feedback = feedback;
+    }
+
+    public HashSet<String> getWhitelist() {
+        return whitelist;
+    }
+
+    public void setWhitelist(HashSet<String> whitelist) {
+        this.whitelist = whitelist;
+    }
+
+    public String getOnNewSubscriberLabel() {
+        return onNewSubscriberLabel;
+    }
+
+    public void setOnNewSubscriberLabel(String onNewSubscriberLabel) {
+        this.onNewSubscriberLabel = onNewSubscriberLabel;
+    }
+
+    public long getFallback() {
+        return fallback;
+    }
+
+    public void setFallback(long fallback) {
+        this.fallback = fallback;
     }
 }

@@ -22,7 +22,6 @@ import com.wire.bots.broadcast.model.Message;
 import com.wire.bots.sdk.Logger;
 import com.wire.bots.sdk.server.model.NewBot;
 
-import java.io.File;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Date;
@@ -32,9 +31,6 @@ public class DbManager {
 
     public DbManager(String path) {
         this.path = path;
-
-        File dir = new File(path);
-        dir.mkdirs();
 
         try {
             Class.forName("org.sqlite.JDBC");
@@ -94,7 +90,6 @@ public class DbManager {
 
     public int insertMessage(Message msg) throws SQLException {
         try (Connection connection = getConnection()) {
-
             String cmd = "INSERT INTO Message " +
                     "(BotId, UserId, Text, Asset_key, Token, Otr_key, Mime_type, Size , Sha256, Time) " +
                     "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -117,7 +112,6 @@ public class DbManager {
 
     public ArrayList<Message> getMessages() throws SQLException {
         ArrayList<Message> ret = new ArrayList<>();
-
         try (Connection connection = getConnection()) {
             Statement statement = connection.createStatement();
             ResultSet rs = statement.executeQuery("SELECT * FROM Message");
@@ -151,7 +145,6 @@ public class DbManager {
 
     public int insertBroadcast(Broadcast broadcast) throws SQLException {
         try (Connection connection = getConnection()) {
-
             String cmd = "INSERT INTO Broadcast " +
                     "(Text, Asset, Url, Title, Asset_key, Token, Otr_key, Mime_type, Size , Sha256, Time) " +
                     "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -175,10 +168,11 @@ public class DbManager {
 
     public ArrayList<Broadcast> getBroadcast(long from) throws SQLException {
         ArrayList<Broadcast> ret = new ArrayList<>();
-
         try (Connection connection = getConnection()) {
             Statement statement = connection.createStatement();
-            ResultSet rs = statement.executeQuery("SELECT * FROM Broadcast WHERE Time > " + from);
+            String sql = String.format("SELECT * FROM Broadcast WHERE Time > %d ORDER by Time ASC",
+                    from);
+            ResultSet rs = statement.executeQuery(sql);
             while (rs.next()) {
                 Broadcast b = new Broadcast();
                 b.setId(rs.getInt("Id"));
@@ -202,7 +196,7 @@ public class DbManager {
     public int insertUser(NewBot newBot) throws SQLException {
         try (Connection connection = getConnection()) {
             String cmd = "INSERT INTO User " +
-                    "(BotId, UserId, Locale , Time, Name) " +
+                    "(BotId, UserId, Locale, Name, Time) " +
                     "VALUES(?, ?, ?, ?, ?)";
             PreparedStatement stm = connection.prepareStatement(cmd);
             stm.setString(1, newBot.id);
@@ -211,7 +205,7 @@ public class DbManager {
             stm.setString(4, newBot.origin.name);
             stm.setLong(5, new Date().getTime() / 1000);
 
-            return stm.executeUpdate(cmd);
+            return stm.executeUpdate();
         }
     }
 

@@ -16,6 +16,9 @@ server:
 #  requestLog:
 #    appenders: []
 
+cryptoDir: crypto              # path to dir where to story crypto box files - directory must exists!
 auth: Bearer your_auth_token   # obtained from DevBot
 database: crypto/broadcast.db  # path to db file
 feedback:                      # BotId to be used to channel the messages received from the users
+fallback: 7                    # Number of days to fallback when fetching broadcasts for new subscribers
+onNewSubscriberLabel: "Hello! I am Broadcast bot.\nHere is something you've missed"

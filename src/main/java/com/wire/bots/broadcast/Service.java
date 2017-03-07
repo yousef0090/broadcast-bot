@@ -27,18 +27,22 @@ import com.wire.bots.sdk.Server;
 import io.dropwizard.setup.Environment;
 
 public class Service extends Server<Config> {
+    private BroadcastResource broadcastResource;
+
     public static void main(String[] args) throws Exception {
         new Service().run(args);
     }
 
     @Override
     protected MessageHandlerBase createHandler(Config config, Environment env) {
-        return new MessageHandler(config, repo);
+        broadcastResource = new BroadcastResource(repo, config);
+
+        return new MessageHandler(broadcastResource, config);
     }
 
     @Override
     protected void onRun(Config config, Environment env) {
-        addResource(new BroadcastResource(repo, config), env);
+        addResource(broadcastResource, env);
         addTask(new ListMessagesTask(config), env);
         addTask(new ListBroadcastsTask(config), env);
     }

@@ -21,19 +21,20 @@ public class ListBroadcastsTask extends TaskBase {
 
     @Override
     public void execute(ImmutableMultimap<String, String> params, PrintWriter printWriter) throws Exception {
-        printWriter.println("Id, Text, Url, Asset, Mime, Size, Date");
+        printWriter.println("Id, Text, Url, Asset, Token, Mime, Size, Date");
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
         DbManager manager = new DbManager(config.getDatabase());
         ArrayList<Broadcast> broadcasts = manager.getBroadcast(0);
         for (Broadcast b : broadcasts) {
-            printWriter.printf("%d, %s, %s, %s, %s, %d, %s\n",
+            printWriter.printf("%d, %s, %s, %s, %s, %s, %dKB, %s\n",
                     b.getId(),
                     b.getText(),
                     b.getUrl(),
                     b.getAssetKey(),
+                    b.getToken(),
                     b.getMimeType(),
-                    b.getSize(),
+                    b.getSize() / 1024,
                     df.format(new Date(b.getTime() * 1000))
             );
         }

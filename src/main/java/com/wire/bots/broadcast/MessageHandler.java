@@ -21,8 +21,8 @@ package com.wire.bots.broadcast;
 import com.wire.bots.broadcast.model.Broadcast;
 import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.broadcast.model.Message;
+import com.wire.bots.broadcast.resource.BroadcastResource;
 import com.wire.bots.broadcast.storage.DbManager;
-import com.wire.bots.sdk.ClientRepo;
 import com.wire.bots.sdk.Logger;
 import com.wire.bots.sdk.MessageHandlerBase;
 import com.wire.bots.sdk.WireClient;
@@ -30,7 +30,6 @@ import com.wire.bots.sdk.assets.Picture;
 import com.wire.bots.sdk.models.ImageMessage;
 import com.wire.bots.sdk.models.TextMessage;
 import com.wire.bots.sdk.server.model.NewBot;
-import com.wire.bots.sdk.server.model.User;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -42,15 +41,15 @@ import java.util.concurrent.TimeUnit;
 public class MessageHandler extends MessageHandlerBase {
     private static final int HISTORY_DAYS = 7;
     private final DbManager dbManager;
-    private final Config config;
-    private final ClientRepo repo;
     private final Timer timer;
+    private final BroadcastResource broadcastResource;
+    private final Config config;
 
-    public MessageHandler(Config config, ClientRepo repo) {
+    public MessageHandler(BroadcastResource broadcastResource, Config config) {
+        this.broadcastResource = broadcastResource;
         this.config = config;
-        this.repo = repo;
 
-        dbManager = new DbManager(config.getDatabase());
+        dbManager = broadcastResource.getDbManager();
         timer = new Timer();
     }
 
@@ -59,9 +58,13 @@ public class MessageHandler extends MessageHandlerBase {
         try {
             Logger.info(String.format("onNewBot: bot: %s, origin: %s", newBot.id, newBot.origin.id));
 
+            if (!isWhiteListed(newBot.origin.id)) {
+                Logger.info(String.format("Rejecting user: %s/%s", newBot.origin.id, newBot.origin.name));
+                return false;
+            }
             saveNewBot(newBot);
 
-            newUserFeedback(newBot.origin.id);
+            broadcastResource.newUserFeedback(newBot.origin.name);
         } catch (Exception e) {
             e.printStackTrace();
             Logger.error(e.getLocalizedMessage());
@@ -74,11 +77,15 @@ public class MessageHandler extends MessageHandlerBase {
         try {
             String botId = client.getId();
 
-            saveMessage(botId, msg);
+            if (isAdminBot(botId)) {
+                broadcastResource.broadcast(msg.getText());
+            } else {
+                saveMessage(botId, msg);
 
-            forwardFeedback(msg);
+                broadcastResource.forwardFeedback(msg);
 
-            likeMessage(client, msg.getMessageId());
+                likeMessage(client, msg.getMessageId());
+            }
         } catch (Exception e) {
             e.printStackTrace();
             Logger.error(e.getLocalizedMessage());
@@ -90,11 +97,16 @@ public class MessageHandler extends MessageHandlerBase {
         try {
             String botId = client.getId();
 
-            saveMessage(botId, msg);
+            if (isAdminBot(botId)) {
+                byte[] bytes = client.downloadAsset(msg.getAssetKey(), msg.getAssetToken(), msg.getSha256(), msg.getOtrKey());
+                broadcastResource.broadcast(msg, bytes);
+            } else {
+                saveMessage(botId, msg);
 
-            forwardFeedback(msg);
+                broadcastResource.forwardFeedback(msg);
 
-            likeMessage(client, msg.getMessageId());
+                likeMessage(client, msg.getMessageId());
+            }
         } catch (Exception e) {
             e.printStackTrace();
             Logger.error(e.getLocalizedMessage());
@@ -104,11 +116,11 @@ public class MessageHandler extends MessageHandlerBase {
     @Override
     public void onNewConversation(WireClient client) {
         try {
-            Logger.info(String.format("onNewConversation: bot: %s, conv: %s", client.getId(), client.getConversationId()));
+            //Logger.info(String.format("onNewConversation: bot: %s, conv: %s", client.getId(), client.getConversationId()));
 
-            client.sendText("Hello! I am Broadcast bot. I broadcast a lot. Here is something you've missed");
+            client.sendText(config.getOnNewSubscriberLabel());
 
-            long from = new Date().getTime() - TimeUnit.DAYS.toMillis(HISTORY_DAYS);
+            long from = new Date().getTime() - TimeUnit.DAYS.toMillis(config.getFallback());
             for (Broadcast b : dbManager.getBroadcast(from / 1000)) {
                 if (b.getText() != null) {
                     client.sendText(b.getText());
@@ -137,73 +149,13 @@ public class MessageHandler extends MessageHandlerBase {
     }
 
     @Override
+    public void onMemberJoin(WireClient client, ArrayList<String> userIds) {
+        broadcastResource.sendOnMemberFeedback("**%s** joined", userIds);
+    }
+
+    @Override
     public void onMemberLeave(WireClient ignored, ArrayList<String> userIds) {
-        try {
-            String botId = config.getFeedback();
-            if (botId != null) {
-                WireClient feedbackClient = repo.getWireClient(botId);
-                for (User user : feedbackClient.getUsers(userIds)) {
-                    String feedback = String.format("**%s** left", user.name);
-                    feedbackClient.sendText(feedback);
-                }
-            }
-        } catch (Exception e) {
-            Logger.error(e.getLocalizedMessage());
-        }
-    }
-
-    private void forwardFeedback(TextMessage msg) throws Exception {
-        String botId = config.getFeedback();
-        if (botId == null)
-            return;
-
-        WireClient feedbackClient = repo.getWireClient(botId);
-        ArrayList<String> ids = new ArrayList<>();
-        ids.add(msg.getUserId());
-        for (User user : feedbackClient.getUsers(ids)) {
-            String feedback = String.format("**%s** wrote: _%s_", user.name, msg.getText());
-            feedbackClient.sendText(feedback);
-        }
-    }
-
-    private void forwardFeedback(ImageMessage msg) throws Exception {
-        String botId = config.getFeedback();
-        if (botId == null)
-            return;
-
-        WireClient feedbackClient = repo.getWireClient(botId);
-        ArrayList<String> ids = new ArrayList<>();
-        ids.add(msg.getUserId());
-        for (User user : feedbackClient.getUsers(ids)) {
-            String feedback = String.format("**%s** sent:", user.name);
-            feedbackClient.sendText(feedback);
-
-            Picture picture = new Picture();
-            picture.setMimeType(msg.getMimeType());
-            picture.setSize((int) msg.getSize());
-            picture.setWidth(msg.getWidth());
-            picture.setHeight(msg.getHeight());
-            picture.setAssetKey(msg.getAssetKey());
-            picture.setAssetToken(msg.getAssetToken());
-            picture.setOtrKey(msg.getOtrKey());
-            picture.setSha256(msg.getSha256());
-
-            feedbackClient.sendPicture(picture);
-        }
-    }
-
-    private void newUserFeedback(String userId) throws Exception {
-        String botId = config.getFeedback();
-        if (botId == null)
-            return;
-
-        WireClient feedbackClient = repo.getWireClient(botId);
-        ArrayList<String> ids = new ArrayList<>();
-        ids.add(userId);
-        for (User user : feedbackClient.getUsers(ids)) {
-            String feedback = String.format("**%s** just joined", user.name);
-            feedbackClient.sendText(feedback);
-        }
+        broadcastResource.sendOnMemberFeedback("**%s** left", userIds);
     }
 
     private void likeMessage(final WireClient client, final String messageId) {
@@ -233,7 +185,7 @@ public class MessageHandler extends MessageHandlerBase {
             m.setMimeType(msg.getMimeType());
             dbManager.insertMessage(m);
         } catch (SQLException e) {
-            Logger.error(e.getSQLState() + ". " + e.getLocalizedMessage());
+            Logger.error(e.getLocalizedMessage());
         }
     }
 
@@ -246,7 +198,7 @@ public class MessageHandler extends MessageHandlerBase {
             m.setMimeType("text");
             dbManager.insertMessage(m);
         } catch (SQLException e) {
-            Logger.error(e.getSQLState() + ". " + e.getLocalizedMessage());
+            Logger.error(e.getLocalizedMessage());
         }
     }
 
@@ -254,8 +206,16 @@ public class MessageHandler extends MessageHandlerBase {
         try {
             dbManager.insertUser(newBot);
         } catch (SQLException e) {
-            Logger.error(e.getSQLState() + ". " + e.getLocalizedMessage());
+            e.printStackTrace();
+            Logger.error(e.getLocalizedMessage());
         }
     }
 
+    private boolean isAdminBot(String botId) {
+        return config.getFeedback() != null && config.getFeedback().equals(botId);
+    }
+
+    private boolean isWhiteListed(String userId) {
+        return config.getWhitelist() == null || config.getWhitelist().contains(userId);
+    }
 }

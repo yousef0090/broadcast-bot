@@ -17,7 +17,7 @@
 //
 package com.wire.bots.broadcast.resource;
 
-import com.wire.bots.broadcast.model.Broadcast;
+import com.wire.bots.broadcast.Executor;
 import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.broadcast.storage.DbManager;
 import com.wire.bots.sdk.ClientRepo;
@@ -25,10 +25,9 @@ import com.wire.bots.sdk.Logger;
 import com.wire.bots.sdk.WireClient;
 import com.wire.bots.sdk.assets.Picture;
 import com.wire.bots.sdk.models.AssetKey;
-import org.jsoup.Connection;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.select.Elements;
+import com.wire.bots.sdk.models.ImageMessage;
+import com.wire.bots.sdk.models.TextMessage;
+import com.wire.bots.sdk.server.model.User;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -36,21 +35,22 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileFilter;
-import java.io.IOException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.ArrayList;
 
 @Path("/broadcast")
 public class BroadcastResource {
     private final ClientRepo repo;
     private final Config conf;
-    private final ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(20);
     private final DbManager dbManager;
 
     public BroadcastResource(ClientRepo repo, Config conf) {
         this.repo = repo;
         this.conf = conf;
         dbManager = new DbManager(conf.getDatabase());
+    }
+
+    public DbManager getDbManager() {
+        return dbManager;
     }
 
     @GET
@@ -62,18 +62,7 @@ public class BroadcastResource {
                     build();
         }
 
-        File dir = new File(conf.cryptoDir);
-        File[] botDirs = dir.listFiles(new FileFilter() {
-            @Override
-            public boolean accept(File file) {
-                String botId = file.getName();
-
-                // Don't broadcast to Feedback conv.
-                if (conf.getFeedback() != null && conf.getFeedback().equals(botId))
-                    return false;
-                return botId.split("-").length == 5 && file.isDirectory();
-            }
-        });
+        File[] botDirs = getCryptoDirs();
 
         if (botDirs.length == 0)
             return Response.
@@ -81,59 +70,29 @@ public class BroadcastResource {
                     status(200).
                     build();
 
-        WireClient wireClient = repo.getWireClient(botDirs[0].getName());
-
         try {
+            Executor exec = new Executor(repo, dbManager);
+
             if (isPicture(text)) {
-                final Picture picture = new Picture(text);
+                Picture picture = new Picture(text);
+
+                WireClient wireClient = repo.getWireClient(botDirs[0].getName());
                 AssetKey assetKey = wireClient.uploadAsset(picture);
                 picture.setAssetKey(assetKey.key);
                 picture.setAssetToken(assetKey.token);
 
-                saveBroadcast(null, null, picture);
-
-                for (File botDir : botDirs) {
-                    final String botId = botDir.getName();
-                    executor.execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            send(picture, botId);
-                        }
-                    });
-                }
+                exec.broadcastPicture(picture, botDirs);
             } else if (isUrl(text)) {
-                final String url = text.trim();
-                final String title = extractPageTitle(url);
-                final Picture preview = uploadPreview(wireClient, extractPagePreview(url));
-
-                saveBroadcast(url, title, preview);
-
-                for (File botDir : botDirs) {
-                    final String botId = botDir.getName();
-                    executor.execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            sendLink(url, title, preview, botId);
-                        }
-                    });
-                }
+                exec.broadcastUrl(text, botDirs);
             } else {
-                dbManager.insertBroadcast(text);
-
-                for (File botDir : botDirs) {
-                    final String botId = botDir.getName();
-                    executor.execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            send(text, botId);
-                        }
-                    });
-                }
+                exec.broadcastText(text, botDirs);
             }
+
             return Response.
                     ok(String.format("Scheduled broadcast for %,d conversations", botDirs.length)).
                     status(201).
                     build();
+
         } catch (Exception e) {
             e.printStackTrace();
             Logger.error(e.getLocalizedMessage());
@@ -144,94 +103,109 @@ public class BroadcastResource {
         }
     }
 
-    private String extractPagePreview(String url) throws IOException {
-        Connection con = Jsoup.connect(url);
-        Document doc = con.get();
+    public void broadcast(ImageMessage msg, byte[] imgData) throws Exception {
+        Picture picture = new Picture(imgData, msg.getMimeType());
+        picture.setSize((int) msg.getSize());
+        picture.setWidth(msg.getWidth());
+        picture.setHeight(msg.getHeight());
+        picture.setAssetKey(msg.getAssetKey());
+        picture.setAssetToken(msg.getAssetToken());
+        picture.setOtrKey(msg.getOtrKey());
+        picture.setSha256(msg.getSha256());
 
-        Elements metaOgImage = doc.select("meta[property=og:image]");
-        if (metaOgImage != null) {
-            return metaOgImage.attr("content");
-        }
-        return null;
+        Executor executor = new Executor(repo, dbManager);
+        executor.broadcastPicture(picture, getCryptoDirs());
     }
 
-    private String extractPageTitle(String url) throws IOException {
-        Connection con = Jsoup.connect(url);
-        Document doc = con.get();
+    public void forwardFeedback(TextMessage msg) throws Exception {
+        String botId = conf.getFeedback();
+        if (botId == null)
+            return;
 
-        Elements title = doc.select("meta[property=og:title]");
-        if (title != null) {
-            return title.attr("content");
+        WireClient feedbackClient = repo.getWireClient(botId);
+        ArrayList<String> ids = new ArrayList<>();
+        ids.add(msg.getUserId());
+        for (User user : feedbackClient.getUsers(ids)) {
+            String feedback = String.format("**%s** wrote: _%s_", user.name, msg.getText());
+            feedbackClient.sendText(feedback);
         }
-        return doc.title();
     }
 
-    private void saveBroadcast(String url, String title, Picture preview) {
+    public void forwardFeedback(ImageMessage msg) throws Exception {
+        String botId = conf.getFeedback();
+        if (botId == null)
+            return;
+
+        WireClient feedbackClient = repo.getWireClient(botId);
+        ArrayList<String> ids = new ArrayList<>();
+        ids.add(msg.getUserId());
+        for (User user : feedbackClient.getUsers(ids)) {
+            String feedback = String.format("**%s** sent:", user.name);
+            feedbackClient.sendText(feedback);
+
+            Picture picture = new Picture();
+            picture.setMimeType(msg.getMimeType());
+            picture.setSize((int) msg.getSize());
+            picture.setWidth(msg.getWidth());
+            picture.setHeight(msg.getHeight());
+            picture.setAssetKey(msg.getAssetKey());
+            picture.setAssetToken(msg.getAssetToken());
+            picture.setOtrKey(msg.getOtrKey());
+            picture.setSha256(msg.getSha256());
+
+            feedbackClient.sendPicture(picture);
+        }
+    }
+
+    public void sendOnMemberFeedback(String format, ArrayList<String> userIds) {
         try {
-            // save to db
-            Broadcast broadcast = new Broadcast();
-            broadcast.setAssetData(preview.getImageData());
-            broadcast.setAssetKey(preview.getAssetKey());
-            broadcast.setToken(preview.getAssetToken());
-            broadcast.setOtrKey(preview.getOtrKey());
-            broadcast.setSha256(preview.getSha256());
-            broadcast.setSize(preview.getSize());
-            broadcast.setMimeType(preview.getMimeType());
-            broadcast.setUrl(url);
-            broadcast.setTitle(title);
-            dbManager.insertBroadcast(broadcast);
+            String botId = conf.getFeedback();
+            if (botId != null) {
+                WireClient feedbackClient = repo.getWireClient(botId);
+                for (User user : feedbackClient.getUsers(userIds)) {
+                    String feedback = String.format(format, user.name);
+                    feedbackClient.sendText(feedback);
+                }
+            }
         } catch (Exception e) {
             Logger.error(e.getLocalizedMessage());
         }
     }
 
-    static boolean isUrl(String text) {
+    public void newUserFeedback(String name) throws Exception {
+        String botId = conf.getFeedback();
+        if (botId == null)
+            return;
+
+        WireClient feedbackClient = repo.getWireClient(botId);
+        String feedback = String.format("**%s** just joined", name);
+        feedbackClient.sendText(feedback);
+    }
+
+    private File[] getCryptoDirs() {
+        File dir = new File(conf.cryptoDir);
+        return dir.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File file) {
+                String botId = file.getName();
+
+                // Don't broadcast to Feedback conv.
+                if (conf.getFeedback() != null && conf.getFeedback().equals(botId))
+                    return false;
+                return botId.split("-").length == 5 && file.isDirectory();
+            }
+        });
+    }
+
+    private static boolean isUrl(String text) {
         return text.startsWith("http");
     }
 
-    static boolean isPicture(String text) {
+    private static boolean isPicture(String text) {
         return text.startsWith("http") && (
                 text.endsWith(".jpg")
                         || text.endsWith(".gif")
                         || text.endsWith(".png"));
     }
-
-    private void send(String text, String botId) {
-        try {
-            WireClient client = repo.getWireClient(botId);
-            client.sendText(text);
-        } catch (Exception e) {
-            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
-            Logger.error(msg);
-        }
-    }
-
-    private void send(Picture picture, String botId) {
-        try {
-            WireClient client = repo.getWireClient(botId);
-            client.sendPicture(picture);
-        } catch (Exception e) {
-            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
-            Logger.error(msg);
-        }
-    }
-
-    private void sendLink(String url, String title, Picture img, String botId) {
-        try {
-            WireClient client = repo.getWireClient(botId);
-            client.sendLinkPreview(url, title, img);
-        } catch (Exception e) {
-            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
-            Logger.error(msg);
-        }
-    }
-
-    private Picture uploadPreview(WireClient client, String imgUrl) throws Exception {
-        Picture preview = new Picture(imgUrl);
-        preview.setPublic(true);
-
-        AssetKey assetKey = client.uploadAsset(preview);
-        preview.setAssetKey(assetKey.key);
-        return preview;
-    }
 }
+
