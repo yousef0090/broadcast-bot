@@ -1,0 +1,72 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: service-broadcast-prod
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: service-broadcast-prod
+    spec:
+      restartPolicy: Always
+
+      containers:
+        - name: broadcast
+          image: eu.gcr.io/wire-bot/broadcast:latest
+
+          resources:
+            requests:
+              memory: "50Mi"
+            limits:
+              memory: "500Mi"
+
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: broadcast-knows
+                  key: token
+
+            - name: KEYSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: broadcast-knows
+                  key: keystore_password
+
+            - name: ADMIN_CONV
+              value:
+
+          ports:
+            - name: https
+              containerPort: 443
+              protocol: TCP
+
+            - name: admin
+              containerPort: 8061
+              protocol: TCP
+
+          volumeMounts:
+            - mountPath: /opt/broadcast/crypto
+              name: cryptobox-broadcast-prod
+
+          command:
+            - "/usr/bin/java"
+            - "-Ddw.auth=$(TOKEN)"
+            - "-Ddw.cryptoDir=/opt/broadcast/crypto"
+            - "-Ddw.database=/opt/broadcast/crypto/broadcast.db"
+            - "-Ddw.feedback=$(ADMIN_CONV)"
+            - "-Ddw.server.applicationConnectors[1].port=443"
+            - "-Ddw.server.applicationConnectors[1].keyStorePassword=$(KEYSTORE_PASSWORD)"
+            - "-Ddw.server.adminConnectors[0].port=8061"
+            - "-jar"
+            - "/opt/broadcast/broadcast.jar"
+            - "server"
+            - "/opt/broadcast/broadcast.yaml"
+
+      volumes:
+        - name: cryptobox-broadcast-prod
+          gcePersistentDisk:
+            pdName: cryptobox-broadcast-prod
+            fsType: ext4
