@@ -16,11 +16,11 @@
 
 ## Build the project
  ```
- make linux
+ mvn -Plinux package
  ```
  
-*windows* and *darwin* are also supported. Running *make* for the first time will generate self signed certificate (stored in ./certs folder).
- Modify the Makefile before the run in order to better reflect your company's name/country...
+*windows* and *darwin* are also supported. Running *ssl.sh* will generate self signed certificate and keystore file (stored in ./certs folder).
+Modify the script before the run in order to better reflect your company's name/country...
 
 ## Register as Wire Bot Developer 
 This is done using DevBot. Go to https://wire.com/b/devbot and log in with your Wire credentials 
@@ -29,7 +29,7 @@ More info on how to register and setup bots can be found [here](https://github.c
 
 ## Create new bot
 Again through DevBot: Create your bot (in this case it will be a bot to serve as a channel). 
-Pick up some unique/catchy name for the bot.
+Pick up some unique/catchy name for the bot. When asked to provide the public key use the one from *./certs/pubkey.pem*
 
 ## Deployment
 Deploy:
@@ -45,15 +45,17 @@ files to your server. Notice that you will need a Public IP to serve as endpoint
 java -jar broadcast.jar server broadcast.yaml
 ```
 
-## Broadcast
-Go to: http://localhost:8049/assets/message.html and post your first message
+## Setup Admin Conversation
+In order to receive all the incoming messages from the subscribers you can select an existing conversation with the broadcast bot
+ and let the service channel all the messages there. Update `admin` param in `broadcast.yaml` with the BotId.
+BotId is printed as first message when subscribing (also visible in logs)
 
-## Setup Feedback conversation
-In order to receive all the incoming messages from the subscribers you can select an existing conversation with the broadcast bot and let the service 
-channel all the messages there. Update `feedback` param in `broadcast.yaml` with the BotId. BotId can be extracted from the logs
+## How to Broadcast messages
+Go to: http://localhost:8062/assets/message.html and post your first message
+Alternatively: posting into Admin Conversation would broadcast the message to all subscribers
 
 ## List all Incoming Messages and Broadcasts
  ```
- curl -XPOST http://localhost:8051/tasks/messages
- curl -XPOST http://localhost:8051/tasks/broadcasts
+ curl -XPOST http://localhost:8061/tasks/messages
+ curl -XPOST http://localhost:8061/tasks/broadcasts
  ```

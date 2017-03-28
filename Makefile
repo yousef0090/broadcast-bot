@@ -1,64 +1,59 @@
 SHELL := /usr/bin/env bash
-BOT   := broadcast
-OS    := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 
-CERTS_DIR		    := certs
-CSR_COUNTRY		    := DE
-CSR_STATE		    := Berlin
-CSR_LOCALITY		:= Berlin
-CSR_ORGANISATION	:= My Company GmbH
-CSR_COMMON		    := company.com
-CSR_NAME            := myservercert
-KEYSTORE_PASSWORD	:= 123456
-KEYSTORE_FILE		:= keystore.jks
+BOT  := broadcast
 
+UNLTD_JCE_POLICY       := vendor/UnlimitedJCEPolicyJDK8
+UNLTD_JCE_POLICY_JARS  := $(UNLTD_JCE_POLICY)/local_policy.jar $(UNLTD_JCE_POLICY)/US_export_policy.jar
 
-ifeq ($(OS), darwin)
-PLATFORM := darwin
-else
-PLATFORM := linux
-endif
+default: package
 
-default: all
+all: package runtime build
 
-.PHONY: all
-all: generate_cert generate_keystore
-	mvn -P$(PLATFORM) package
-
-.PHONY: linux
-linux: generate_cert generate_keystore
+package:
 	mvn -Plinux package
 
-.PHONY: darwin
-darwin: generate_cert generate_keystore
-	mvn -Pdarwin package
-	
-PHONY: windows
-windows: generate_cert generate_keystore
-	mvn -Pwindows package
+build:
+	docker build --tag wire/$(BOT) -f Dockerfile .
 
-.PHONY: generate_cert
-generate_cert: | $(CERTS_DIR)
+.PHONY: runtime
+runtime: $(UNLTD_JCE_POLICY_JARS)
+	docker build --tag wire/bots.runtime -f Dockerfile.runtime .
 
-$(CERTS_DIR):
-	mkdir -p $(CERTS_DIR)
-	openssl genrsa -out $(CERTS_DIR)/privkey.pem 4096
-	openssl req -new -subj "/C=$(CSR_COUNTRY)/ST=$(CSR_STATE)/L=$(CSR_LOCALITY)/O=$(CSR_ORGANISATION)/CN=$(CSR_COMMON)" -key $(CERTS_DIR)/privkey.pem -out $(CERTS_DIR)/csr.pem
-	openssl x509 -req -days 7300 -in $(CERTS_DIR)/csr.pem -signkey $(CERTS_DIR)/privkey.pem -out $(CERTS_DIR)/cert.pem
-	openssl rsa -in $(CERTS_DIR)/privkey.pem -pubout -out $(CERTS_DIR)/pubkey.pem
+$(UNLTD_JCE_POLICY_JARS):
+	$(MAKE) crypto_policy
 
-.PHONY: generate_keystore
-generate_keystore: | $(CERTS_DIR)/$(KEYSTORE_FILE)
-
-$(CERTS_DIR)/$(KEYSTORE_FILE):
-	openssl pkcs12 -export -name $(CSR_NAME) -in $(CERTS_DIR)/cert.pem -inkey $(CERTS_DIR)/privkey.pem -out $(CERTS_DIR)/keystore.p12 -passout pass:$(KEYSTORE_PASSWORD)
-	keytool -importkeystore -noprompt -destkeystore $(CERTS_DIR)/$(KEYSTORE_FILE) -srckeystore $(CERTS_DIR)/keystore.p12 -srcstorepass $(KEYSTORE_PASSWORD) -storepass $(KEYSTORE_PASSWORD) -srcstoretype pkcs12 -alias myservercert
+.PHONY: crypto_policy
+crypto_policy:
+	@echo
+	@echo "ERROR: Unlimited Strength Javarr Crypto Required"
+	@echo
+	@echo "Please download the strong cryptography policies for Java from"
+	@echo "http://www.oracle.com/technetwork/java/javase/downloads/jce8-download-2133166.html"
+	@echo "and unzip the archive into $(CURDIR)/vendor"
+	@echo
+	@exit 1
 
 .PHONY: clean
-clean:
+clean: rm_dots
 	mvn clean
-	rm -rf $(CERTS_DIR)
 
-.PHONY: run
+install:
+	mvn install
+
+dist: install .metadata
+	makedeb --name=$(NAME)          \
+			--version=$(VERSION)    \
+			--architecture=all      \
+			--build=$(BUILD_NUMBER) \
+			--debian-dir=deb        \
+			--output-dir=target
+
+.metadata:
+	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD_NUMBER)\n" \
+		> .metadata
+
+rm_dots:
+	-rm -r .metadata
+
 run:
 	java -jar target/$(BOT).jar server $(BOT).yaml
