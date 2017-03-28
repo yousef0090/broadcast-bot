@@ -118,7 +118,8 @@ public class MessageHandler extends MessageHandlerBase {
         try {
             //Logger.info(String.format("onNewConversation: bot: %s, conv: %s", client.getId(), client.getConversationId()));
 
-            client.sendText(config.getOnNewSubscriberLabel());
+            String label = config.getOnNewSubscriberLabel().replace("[botId]", client.getId());
+            client.sendText(label);
 
             long from = new Date().getTime() - TimeUnit.DAYS.toMillis(config.getFallback());
             for (Broadcast b : dbManager.getBroadcast(from / 1000)) {
@@ -212,7 +213,7 @@ public class MessageHandler extends MessageHandlerBase {
     }
 
     private boolean isAdminBot(String botId) {
-        return config.getFeedback() != null && config.getFeedback().equals(botId);
+        return config.getAdmin() != null && config.getAdmin().equals(botId);
     }
 
     private boolean isWhiteListed(String userId) {

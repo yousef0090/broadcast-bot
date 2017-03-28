@@ -118,7 +118,7 @@ public class BroadcastResource {
     }
 
     public void forwardFeedback(TextMessage msg) throws Exception {
-        String botId = conf.getFeedback();
+        String botId = conf.getAdmin();
         if (botId == null)
             return;
 
@@ -132,7 +132,7 @@ public class BroadcastResource {
     }
 
     public void forwardFeedback(ImageMessage msg) throws Exception {
-        String botId = conf.getFeedback();
+        String botId = conf.getAdmin();
         if (botId == null)
             return;
 
@@ -159,7 +159,7 @@ public class BroadcastResource {
 
     public void sendOnMemberFeedback(String format, ArrayList<String> userIds) {
         try {
-            String botId = conf.getFeedback();
+            String botId = conf.getAdmin();
             if (botId != null) {
                 WireClient feedbackClient = repo.getWireClient(botId);
                 for (User user : feedbackClient.getUsers(userIds)) {
@@ -173,7 +173,7 @@ public class BroadcastResource {
     }
 
     public void newUserFeedback(String name) throws Exception {
-        String botId = conf.getFeedback();
+        String botId = conf.getAdmin();
         if (botId == null)
             return;
 
@@ -190,7 +190,7 @@ public class BroadcastResource {
                 String botId = file.getName();
 
                 // Don't broadcast to Feedback conv.
-                if (conf.getFeedback() != null && conf.getFeedback().equals(botId))
+                if (conf.getAdmin() != null && conf.getAdmin().equals(botId))
                     return false;
                 return botId.split("-").length == 5 && file.isDirectory();
             }

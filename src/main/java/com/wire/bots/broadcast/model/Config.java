@@ -22,7 +22,7 @@ import java.util.HashSet;
 
 public class Config extends com.wire.bots.sdk.Configuration {
     private String database = "crypto/broadcast.db";
-    private String feedback;
+    private String admin;
     private HashSet<String> whitelist;
     private String onNewSubscriberLabel;
     private long fallback;
@@ -35,12 +35,12 @@ public class Config extends com.wire.bots.sdk.Configuration {
         this.database = database;
     }
 
-    public String getFeedback() {
-        return feedback;
+    public String getAdmin() {
+        return admin;
     }
 
-    public void setFeedback(String feedback) {
-        this.feedback = feedback;
+    public void setAdmin(String admin) {
+        this.admin = admin;
     }
 
     public HashSet<String> getWhitelist() {

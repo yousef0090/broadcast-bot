@@ -56,7 +56,7 @@ spec:
             - "-Ddw.auth=$(TOKEN)"
             - "-Ddw.cryptoDir=/opt/broadcast/crypto"
             - "-Ddw.database=/opt/broadcast/crypto/broadcast.db"
-            - "-Ddw.feedback=$(ADMIN_CONV)"
+            - "-Ddw.admin=$(ADMIN_CONV)"
             - "-Ddw.server.applicationConnectors[1].port=443"
             - "-Ddw.server.applicationConnectors[1].keyStorePassword=$(KEYSTORE_PASSWORD)"
             - "-Ddw.server.adminConnectors[0].port=8061"
