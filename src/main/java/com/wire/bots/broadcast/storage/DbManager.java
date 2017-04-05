@@ -72,6 +72,14 @@ public class DbManager {
             if (update > 0)
                 Logger.info("CREATED TABLE Broadcast");
 
+            try {
+                update = statement.executeUpdate("ALTER TABLE Broadcast ADD MessageId STRING");
+                if (update > 0)
+                    Logger.info("ALTERED TABLE Broadcast");
+            } catch (SQLException ignore) {
+               //ignore
+            }
+
             update = statement.executeUpdate("CREATE TABLE IF NOT EXISTS User " +
                     "(BotId STRING PRIMARY KEY," +
                     " UserId STRING," +
@@ -129,25 +137,11 @@ public class DbManager {
         return ret;
     }
 
-    public int insertBroadcast(String text) throws SQLException {
-        try (Connection connection = getConnection()) {
-            String cmd = "INSERT INTO Broadcast " +
-                    "(Text, Time) " +
-                    "VALUES(?, ?)";
-
-            PreparedStatement stm = connection.prepareStatement(cmd);
-            stm.setString(1, text);
-            stm.setLong(2, new Date().getTime() / 1000);
-
-            return stm.executeUpdate();
-        }
-    }
-
     public int insertBroadcast(Broadcast broadcast) throws SQLException {
         try (Connection connection = getConnection()) {
             String cmd = "INSERT INTO Broadcast " +
-                    "(Text, Asset, Url, Title, Asset_key, Token, Otr_key, Mime_type, Size , Sha256, Time) " +
-                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    "(Text, Asset, Url, Title, Asset_key, Token, Otr_key, Mime_type, Size , Sha256, Time, MessageId) " +
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
             PreparedStatement stm = connection.prepareStatement(cmd);
             stm.setString(1, broadcast.getText());
@@ -161,6 +155,7 @@ public class DbManager {
             stm.setLong(9, broadcast.getSize());
             stm.setBytes(10, broadcast.getSha256());
             stm.setLong(11, new Date().getTime() / 1000);
+            stm.setString(12, broadcast.getMessageId());
 
             return stm.executeUpdate();
         }
@@ -186,6 +181,7 @@ public class DbManager {
                 b.setSha256(rs.getBytes("Sha256"));
                 b.setSize(rs.getInt("Size"));
                 b.setMimeType(rs.getString("Mime_type"));
+                b.setMessageId(rs.getString("MessageId"));
                 b.setTime(rs.getInt("Time"));
                 ret.add(b);
             }
@@ -211,5 +207,14 @@ public class DbManager {
 
     private Connection getConnection() throws SQLException {
         return DriverManager.getConnection(String.format("jdbc:sqlite:%s", path));
+    }
+
+    public int deleteBroadcast(String messageId) throws SQLException {
+        try (Connection connection = getConnection()) {
+            String cmd = "DELETE FROM Broadcast WHERE messageId = ?";
+            PreparedStatement stm = connection.prepareStatement(cmd);
+            stm.setString(1, messageId);
+            return stm.executeUpdate();
+        }
     }
 }

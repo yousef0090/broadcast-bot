@@ -18,52 +18,37 @@
 
 package com.wire.bots.broadcast.model;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 
 public class Config extends com.wire.bots.sdk.Configuration {
     private String database = "crypto/broadcast.db";
     private String admin;
-    private HashSet<String> whitelist;
+    private ArrayList<String> whitelist;
     private String onNewSubscriberLabel;
     private long fallback;
+    private String channelName;
 
     public String getDatabase() {
         return database;
-    }
-
-    public void setDatabase(String database) {
-        this.database = database;
     }
 
     public String getAdmin() {
         return admin;
     }
 
-    public void setAdmin(String admin) {
-        this.admin = admin;
-    }
-
-    public HashSet<String> getWhitelist() {
+    public ArrayList<String> getWhitelist() {
         return whitelist;
-    }
-
-    public void setWhitelist(HashSet<String> whitelist) {
-        this.whitelist = whitelist;
     }
 
     public String getOnNewSubscriberLabel() {
         return onNewSubscriberLabel;
     }
 
-    public void setOnNewSubscriberLabel(String onNewSubscriberLabel) {
-        this.onNewSubscriberLabel = onNewSubscriberLabel;
-    }
-
     public long getFallback() {
         return fallback;
     }
 
-    public void setFallback(long fallback) {
-        this.fallback = fallback;
+    public String getChannelName() {
+        return channelName;
     }
 }

@@ -1,8 +1,7 @@
 target/
-~certs/
+certs/
 crypto/
 .idea/
-hello.iml
+*.iml
 *.log
 *.lck
-*.iml

@@ -30,6 +30,7 @@ public class Broadcast {
     private String url;
     private String title;
     private byte[] assetData;
+    private String messageId;
 
     public void setId(int id) {
         this.id = id;
@@ -125,5 +126,13 @@ public class Broadcast {
 
     public void setAssetData(byte[] assetData) {
         this.assetData = assetData;
+    }
+
+    public void setMessageId(String messageId) {
+        this.messageId = messageId;
+    }
+
+    public String getMessageId() {
+        return messageId;
     }
 }

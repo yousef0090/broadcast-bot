@@ -79,33 +79,39 @@ public class Executor {
         }
     }
 
-    public void broadcastText(final String text, File[] botDirs) throws SQLException {
-        dbManager.insertBroadcast(text);
+    public void broadcastText(final String messageId, final String text, File[] botDirs) throws SQLException {
+        Broadcast b = new Broadcast();
+        b.setMessageId(messageId);
+        b.setText(text);
+
+        dbManager.insertBroadcast(b);
 
         for (File botDir : botDirs) {
             final String botId = botDir.getName();
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    sendText(text, botId);
+                    sendText(messageId, text, botId);
                 }
             });
         }
     }
 
-    private void saveBroadcast(String url, String title, Picture preview) {
+    private void saveBroadcast(String url, String title, Picture picture) {
         try {
             // save to db
             Broadcast broadcast = new Broadcast();
-            broadcast.setAssetData(preview.getImageData());
-            broadcast.setAssetKey(preview.getAssetKey());
-            broadcast.setToken(preview.getAssetToken());
-            broadcast.setOtrKey(preview.getOtrKey());
-            broadcast.setSha256(preview.getSha256());
-            broadcast.setSize(preview.getSize());
-            broadcast.setMimeType(preview.getMimeType());
+            broadcast.setAssetData(picture.getImageData());
+            broadcast.setAssetKey(picture.getAssetKey());
+            broadcast.setToken(picture.getAssetToken());
+            broadcast.setOtrKey(picture.getOtrKey());
+            broadcast.setSha256(picture.getSha256());
+            broadcast.setSize(picture.getSize());
+            broadcast.setMimeType(picture.getMimeType());
             broadcast.setUrl(url);
             broadcast.setTitle(title);
+            broadcast.setMessageId(picture.getMessageId());
+
             dbManager.insertBroadcast(broadcast);
         } catch (Exception e) {
             Logger.error(e.getLocalizedMessage());
@@ -122,10 +128,10 @@ public class Executor {
         }
     }
 
-    private void sendText(String text, String botId) {
+    private void sendText(String messageId, String text, String botId) {
         try {
             WireClient client = repo.getWireClient(botId);
-            client.sendText(text);
+            client.sendText(text, 0, messageId);
         } catch (Exception e) {
             String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
             Logger.error(msg);
@@ -171,5 +177,29 @@ public class Executor {
             return title.attr("content");
         }
         return doc.title();
+    }
+
+    public void deleteBroadcast(final String messageId, File[] botDirs) throws SQLException {
+        dbManager.deleteBroadcast(messageId);
+
+        for (File botDir : botDirs) {
+            final String botId = botDir.getName();
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    deleteMessage(messageId, botId);
+                }
+            });
+        }
+    }
+
+    private void deleteMessage(String messageId, String botId) {
+        try {
+            WireClient client = repo.getWireClient(botId);
+            client.deleteMessage(messageId);
+        } catch (Exception e) {
+            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
+            Logger.error(msg);
+        }
     }
 }

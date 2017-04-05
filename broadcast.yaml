@@ -13,9 +13,10 @@ server:
   adminConnectors:
     - type: http
       port: 8061    # admin port
-#  requestLog:
-#    appenders: []
+  requestLog:
+    appenders: []
 
+whitelist: []
 cryptoDir: crypto              # path to dir where to story crypto box files - directory must exists!
 auth: Bearer your_auth_token   # obtained from DevBot
 database: crypto/broadcast.db  # path to db file

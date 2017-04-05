@@ -18,6 +18,7 @@
 
 package com.wire.bots.broadcast;
 
+import com.waz.model.Messages;
 import com.wire.bots.broadcast.model.Broadcast;
 import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.broadcast.model.Message;
@@ -39,7 +40,6 @@ import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 public class MessageHandler extends MessageHandlerBase {
-    private static final int HISTORY_DAYS = 7;
     private final DbManager dbManager;
     private final Timer timer;
     private final BroadcastResource broadcastResource;
@@ -78,7 +78,7 @@ public class MessageHandler extends MessageHandlerBase {
             String botId = client.getId();
 
             if (isAdminBot(botId)) {
-                broadcastResource.broadcast(msg.getText());
+                broadcastResource.broadcast(msg);
             } else {
                 saveMessage(botId, msg);
 
@@ -116,8 +116,6 @@ public class MessageHandler extends MessageHandlerBase {
     @Override
     public void onNewConversation(WireClient client) {
         try {
-            //Logger.info(String.format("onNewConversation: bot: %s, conv: %s", client.getId(), client.getConversationId()));
-
             String label = config.getOnNewSubscriberLabel().replace("[botId]", client.getId());
             client.sendText(label);
 
@@ -157,6 +155,24 @@ public class MessageHandler extends MessageHandlerBase {
     @Override
     public void onMemberLeave(WireClient ignored, ArrayList<String> userIds) {
         broadcastResource.sendOnMemberFeedback("**%s** left", userIds);
+    }
+
+    @Override
+    public void onEvent(WireClient client, String userId, Messages.GenericMessage msg) {
+        if (msg.hasReaction()) {
+            Logger.info(String.format("onEvent (Like) bot: %s, user: %s", client.getId(), userId));
+        }
+
+        if (msg.hasDeleted()) {
+            if (isAdminBot(client.getId())) {
+                Messages.MessageDelete deleted = msg.getDeleted();
+                broadcastResource.deleteBroadcast(deleted.getMessageId());
+            }
+        }
+    }
+
+    public String getName() {
+        return config.getChannelName();
     }
 
     private void likeMessage(final WireClient client, final String messageId) {
@@ -217,6 +233,9 @@ public class MessageHandler extends MessageHandlerBase {
     }
 
     private boolean isWhiteListed(String userId) {
-        return config.getWhitelist() == null || config.getWhitelist().contains(userId);
+        return config.getWhitelist() == null
+                || config.getWhitelist().isEmpty()
+                || config.getWhitelist().contains(userId);
+
     }
 }

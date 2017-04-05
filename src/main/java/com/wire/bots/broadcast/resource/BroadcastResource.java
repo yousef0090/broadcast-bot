@@ -36,6 +36,7 @@ import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
+import java.util.UUID;
 
 @Path("/broadcast")
 public class BroadcastResource {
@@ -85,7 +86,7 @@ public class BroadcastResource {
             } else if (isUrl(text)) {
                 exec.broadcastUrl(text, botDirs);
             } else {
-                exec.broadcastText(text, botDirs);
+                exec.broadcastText(UUID.randomUUID().toString(), text, botDirs);
             }
 
             return Response.
@@ -103,6 +104,19 @@ public class BroadcastResource {
         }
     }
 
+    public void broadcast(TextMessage msg) throws Exception {
+        Executor exec = new Executor(repo, dbManager);
+        String text = msg.getText();
+        String messageId = msg.getMessageId();
+
+        File[] botDirs = getCryptoDirs();
+        if (isUrl(text)) {
+            exec.broadcastUrl(text, botDirs);
+        } else {
+            exec.broadcastText(messageId, text, botDirs);
+        }
+    }
+
     public void broadcast(ImageMessage msg, byte[] imgData) throws Exception {
         Picture picture = new Picture(imgData, msg.getMimeType());
         picture.setSize((int) msg.getSize());
@@ -112,6 +126,7 @@ public class BroadcastResource {
         picture.setAssetToken(msg.getAssetToken());
         picture.setOtrKey(msg.getOtrKey());
         picture.setSha256(msg.getSha256());
+        picture.setMessageId(msg.getMessageId());
 
         Executor executor = new Executor(repo, dbManager);
         executor.broadcastPicture(picture, getCryptoDirs());
@@ -206,6 +221,15 @@ public class BroadcastResource {
                 text.endsWith(".jpg")
                         || text.endsWith(".gif")
                         || text.endsWith(".png"));
+    }
+
+    public void deleteBroadcast(String messageId) {
+        try {
+            Executor executor = new Executor(repo, dbManager);
+            executor.deleteBroadcast(messageId, getCryptoDirs());
+        } catch (Exception e) {
+            Logger.error(e.getLocalizedMessage());
+        }
     }
 }
 

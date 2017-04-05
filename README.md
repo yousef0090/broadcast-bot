@@ -19,8 +19,8 @@
  mvn -Plinux package
  ```
  
-*windows* and *darwin* are also supported. Running *ssl.sh* will generate self signed certificate and keystore file (stored in ./certs folder).
-Modify the script before the run in order to better reflect your company's name/country...
+*windows* and *darwin* are also supported. Running *gen_cert.sh* will generate self signed certificate and keystore file
+ (stored in *certs* folder). Modify the script before the run in order to better reflect your company's name/country...
 
 ## Register as Wire Bot Developer 
 This is done using DevBot. Go to https://wire.com/b/devbot and log in with your Wire credentials 
