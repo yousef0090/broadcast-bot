@@ -27,6 +27,9 @@ public class Config extends com.wire.bots.sdk.Configuration {
     private String onNewSubscriberLabel;
     private long fallback;
     private String channelName;
+    private boolean like = true;
+    private long expiration;
+    private String appSecret;
 
     public String getDatabase() {
         return database;
@@ -50,5 +53,21 @@ public class Config extends com.wire.bots.sdk.Configuration {
 
     public String getChannelName() {
         return channelName;
+    }
+
+    public boolean isLike() {
+        return like;
+    }
+
+    public long getExpiration() {
+        return expiration;
+    }
+
+    public void setExpiration(long expiration) {
+        this.expiration = expiration;
+    }
+
+    public String getAppSecret() {
+        return appSecret;
     }
 }

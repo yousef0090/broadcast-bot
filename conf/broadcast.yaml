@@ -1,0 +1,28 @@
+server:
+  applicationConnectors:
+    - type: http
+      port: 8062      # http listening port
+    - type: https
+      port: 443      # https listening port
+      keyStorePath: keystore.jks
+      keyStorePassword: your_password
+      certAlias: myservercert
+      validateCerts: false
+      validatePeers: false
+
+  adminConnectors:
+    - type: http
+      port: 8061    # admin port
+  requestLog:
+    appenders: []
+
+whitelist: []
+cryptoDir: /var/lib/broadcast/crypto  # path to dir where to story crypto box files - directory must exists!
+auth: "your_auth_token"        # obtained from DevBot
+database: /var/lib/broadcast/crypto/broadcast.db  # path to db file
+admin:                         # BotId to be used to channel the messages received from the users
+fallback: 60                   # Number of minutes to fallback when fetching broadcasts for new subscribers
+like: false                    # Like every message sent by subscriber
+expiration: 0                  # minutes
+onNewSubscriberLabel: "GitHub Bot"
+channelName: GitHub

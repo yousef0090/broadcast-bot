@@ -19,20 +19,26 @@
 package com.wire.bots.broadcast;
 
 import com.wire.bots.broadcast.model.Broadcast;
+import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.broadcast.storage.DbManager;
 import com.wire.bots.sdk.ClientRepo;
 import com.wire.bots.sdk.Logger;
 import com.wire.bots.sdk.WireClient;
 import com.wire.bots.sdk.assets.Picture;
 import com.wire.bots.sdk.models.AssetKey;
+import com.wire.bots.sdk.models.ImageMessage;
+import com.wire.bots.sdk.models.TextMessage;
+import com.wire.bots.sdk.server.model.User;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -40,13 +46,52 @@ public class Executor {
     private final ClientRepo repo;
     private final ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(20);
     private final DbManager dbManager;
+    private final Config config;
 
-    public Executor(ClientRepo repo, DbManager dbManager) {
+    public Executor(ClientRepo repo, Config config) {
         this.repo = repo;
-        this.dbManager = dbManager;
+        this.dbManager = new DbManager(config.getDatabase());
+        this.config = config;
     }
 
-    public void broadcastUrl(final String url, File[] botDirs) throws Exception {
+    public void broadcast(Picture picture) throws Exception {
+        File[] botDirs = getCryptoDirs();
+
+        WireClient wireClient = repo.getWireClient(botDirs[0].getName());
+        AssetKey assetKey = wireClient.uploadAsset(picture);
+        picture.setAssetKey(assetKey.key);
+        picture.setAssetToken(assetKey.token);
+
+        broadcastPicture(picture);
+    }
+
+    public void broadcast(ImageMessage msg, byte[] imgData) throws Exception {
+        Picture picture = new Picture(imgData, msg.getMimeType());
+        picture.setSize((int) msg.getSize());
+        picture.setWidth(msg.getWidth());
+        picture.setHeight(msg.getHeight());
+        picture.setAssetKey(msg.getAssetKey());
+        picture.setAssetToken(msg.getAssetToken());
+        picture.setOtrKey(msg.getOtrKey());
+        picture.setSha256(msg.getSha256());
+        picture.setMessageId(msg.getMessageId());
+
+        broadcastPicture(picture);
+    }
+
+    public void broadcast(TextMessage msg) throws Exception {
+        String text = msg.getText();
+        String messageId = msg.getMessageId();
+
+        if (text.startsWith("http")) {
+            broadcastUrl(text);
+        } else {
+            broadcastText(messageId, text);
+        }
+    }
+
+    public void broadcastUrl(final String url) throws Exception {
+        File[] botDirs = getCryptoDirs();
         WireClient wireClient = repo.getWireClient(botDirs[0].getName());
 
         final String title = extractPageTitle(url);
@@ -65,21 +110,9 @@ public class Executor {
         }
     }
 
-    public void broadcastPicture(final Picture picture, File[] botDirs)  {
-        saveBroadcast(null, null, picture);
+    public void broadcastText(final String messageId, final String text) throws SQLException {
+        File[] botDirs = getCryptoDirs();
 
-        for (File botDir : botDirs) {
-            final String botId = botDir.getName();
-            executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    sendPicture(picture, botId);
-                }
-            });
-        }
-    }
-
-    public void broadcastText(final String messageId, final String text, File[] botDirs) throws SQLException {
         Broadcast b = new Broadcast();
         b.setMessageId(messageId);
         b.setText(text);
@@ -92,6 +125,93 @@ public class Executor {
                 @Override
                 public void run() {
                     sendText(messageId, text, botId);
+                }
+            });
+        }
+    }
+
+    public void revokeBroadcast(final String messageId) throws SQLException {
+        dbManager.deleteBroadcast(messageId);
+
+        for (File botDir : getCryptoDirs()) {
+            final String botId = botDir.getName();
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    deleteMessage(messageId, botId);
+                }
+            });
+        }
+    }
+
+    public void forwardFeedback(TextMessage msg) throws Exception {
+        if (!hasAdminConv()) return;
+
+        WireClient feedbackClient = repo.getWireClient(config.getAdmin());
+        ArrayList<String> ids = new ArrayList<>();
+        ids.add(msg.getUserId());
+        for (User user : feedbackClient.getUsers(ids)) {
+            String feedback = String.format("**%s** wrote: _%s_", user.name, msg.getText());
+            feedbackClient.sendText(feedback);
+        }
+    }
+
+    public void forwardFeedback(ImageMessage msg) throws Exception {
+        if (!hasAdminConv()) return;
+
+        WireClient feedbackClient = repo.getWireClient(config.getAdmin());
+        ArrayList<String> ids = new ArrayList<>();
+        ids.add(msg.getUserId());
+        for (User user : feedbackClient.getUsers(ids)) {
+            String feedback = String.format("**%s** sent:", user.name);
+            feedbackClient.sendText(feedback);
+
+            Picture picture = new Picture();
+            picture.setMimeType(msg.getMimeType());
+            picture.setSize((int) msg.getSize());
+            picture.setWidth(msg.getWidth());
+            picture.setHeight(msg.getHeight());
+            picture.setAssetKey(msg.getAssetKey());
+            picture.setAssetToken(msg.getAssetToken());
+            picture.setOtrKey(msg.getOtrKey());
+            picture.setSha256(msg.getSha256());
+
+            feedbackClient.sendPicture(picture);
+        }
+    }
+
+    public void sendOnMemberFeedback(String format, ArrayList<String> userIds) {
+        if (!hasAdminConv()) return;
+
+        try {
+            WireClient feedbackClient = repo.getWireClient(config.getAdmin());
+            for (User user : feedbackClient.getUsers(userIds)) {
+                String feedback = String.format(format, user.name);
+                feedbackClient.sendText(feedback);
+            }
+        } catch (Exception e) {
+            Logger.error(e.getLocalizedMessage());
+        }
+    }
+
+    public void newUserFeedback(String name) throws Exception {
+        if (!hasAdminConv()) return;
+
+        WireClient feedbackClient = repo.getWireClient(config.getAdmin());
+        String feedback = String.format("**%s** just joined", name);
+        feedbackClient.sendText(feedback);
+    }
+
+    private void broadcastPicture(final Picture picture) {
+        saveBroadcast(null, null, picture);
+
+        File[] botDirs = getCryptoDirs();
+        for (File botDir : botDirs) {
+            final String botId = botDir.getName();
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    sendPicture(picture, botId);
                 }
             });
         }
@@ -179,20 +299,6 @@ public class Executor {
         return doc.title();
     }
 
-    public void deleteBroadcast(final String messageId, File[] botDirs) throws SQLException {
-        dbManager.deleteBroadcast(messageId);
-
-        for (File botDir : botDirs) {
-            final String botId = botDir.getName();
-            executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    deleteMessage(messageId, botId);
-                }
-            });
-        }
-    }
-
     private void deleteMessage(String messageId, String botId) {
         try {
             WireClient client = repo.getWireClient(botId);
@@ -201,5 +307,28 @@ public class Executor {
             String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
             Logger.error(msg);
         }
+    }
+
+    private File[] getCryptoDirs() {
+        File dir = new File(config.cryptoDir);
+        return dir.listFiles(new FileFilter() {
+            @Override
+            public boolean accept(File file) {
+                String botId = file.getName();
+
+                // Don't broadcast to Feedback conv.
+                if (config.getAdmin() != null && config.getAdmin().equals(botId))
+                    return false;
+                return botId.split("-").length == 5 && file.isDirectory();
+            }
+        });
+    }
+
+    private boolean hasAdminConv() {
+        return config.getAdmin() != null && !config.getAdmin().isEmpty();
+    }
+
+    public DbManager getDbManager() {
+        return dbManager;
     }
 }

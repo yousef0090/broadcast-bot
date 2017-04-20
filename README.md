@@ -42,7 +42,7 @@ files to your server. Notice that you will need a Public IP to serve as endpoint
 
 ## Run the Service
 ```
-java -jar broadcast.jar server broadcast.yaml
+java -jar /path/to/broadcast.jar server /path/to/broadcast.yaml
 ```
 
 ## Setup Admin Conversation

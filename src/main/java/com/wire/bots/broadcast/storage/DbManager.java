@@ -77,7 +77,7 @@ public class DbManager {
                 if (update > 0)
                     Logger.info("ALTERED TABLE Broadcast");
             } catch (SQLException ignore) {
-               //ignore
+                //ignore
             }
 
             update = statement.executeUpdate("CREATE TABLE IF NOT EXISTS User " +
@@ -167,6 +167,37 @@ public class DbManager {
             Statement statement = connection.createStatement();
             String sql = String.format("SELECT * FROM Broadcast WHERE Time > %d ORDER by Time ASC",
                     from);
+            ResultSet rs = statement.executeQuery(sql);
+            while (rs.next()) {
+                Broadcast b = new Broadcast();
+                b.setId(rs.getInt("Id"));
+                b.setText(rs.getString("Text"));
+                b.setUrl(rs.getString("Url"));
+                b.setTitle(rs.getString("Title"));
+                b.setAssetKey(rs.getString("Asset_key"));
+                b.setToken(rs.getString("Token"));
+                b.setAssetData(rs.getBytes("Asset"));
+                b.setOtrKey(rs.getBytes("Otr_key"));
+                b.setSha256(rs.getBytes("Sha256"));
+                b.setSize(rs.getInt("Size"));
+                b.setMimeType(rs.getString("Mime_type"));
+                b.setMessageId(rs.getString("MessageId"));
+                b.setTime(rs.getInt("Time"));
+                ret.add(b);
+            }
+        }
+        return ret;
+    }
+
+    public ArrayList<Broadcast> getLastAsset(int limit) throws SQLException {
+        ArrayList<Broadcast> ret = new ArrayList<>();
+        try (Connection connection = getConnection()) {
+            Statement statement = connection.createStatement();
+            String sql = String.format("SELECT * FROM Broadcast " +
+                            "WHERE asset IS NOT NULL " +
+                            "ORDER BY Time DESC " +
+                            "LIMIT %d",
+                    limit);
             ResultSet rs = statement.executeQuery(sql);
             while (rs.next()) {
                 Broadcast b = new Broadcast();

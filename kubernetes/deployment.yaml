@@ -1,0 +1,91 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: github
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: github
+    spec:
+      restartPolicy: Always
+
+      containers:
+        - name: broadcast
+          image: eu.gcr.io/wire-bot/broadcast:latest
+
+          resources:
+            requests:
+              memory: "50Mi"
+            limits:
+              memory: "500Mi"
+
+          env:
+            - name: AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-knows
+                  key: token
+
+            - name: APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: github-knows
+                  key: app_secret
+
+            - name: KEYSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: github-knows
+                  key: keystore_password
+
+            - name: ADMIN_CONV
+              valueFrom:
+                configMapKeyRef:
+                  name: github-config
+                  key: admin
+
+
+          volumeMounts:
+            - name: github-disk
+              mountPath: /var/lib/broadcast/crypto
+
+            - name: github-config
+              mountPath: /etc/broadcast
+
+          command:
+            - "/usr/bin/java"
+            - "-Ddw.server.applicationConnectors[1].keyStorePassword=$(KEYSTORE_PASSWORD)"
+            - "-Ddw.auth=$(AUTH_TOKEN)"
+            - "-Ddw.admin=$(ADMIN_CONV)"
+            - "-Ddw.appSecret=$(APP_SECRET)"
+            - "-jar"
+            - "broadcast.jar"
+            - "server"
+            - "/etc/broadcast/broadcast.yaml"
+
+      volumes:
+        - name: github-disk
+          gcePersistentDisk:
+            pdName: github-disk
+            fsType: ext4
+
+        - name: github-config
+          configMap:
+            name: github-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github
+spec:
+  selector:
+    name: github
+  type: LoadBalancer
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP

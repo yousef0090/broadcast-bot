@@ -22,8 +22,8 @@ import com.waz.model.Messages;
 import com.wire.bots.broadcast.model.Broadcast;
 import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.broadcast.model.Message;
-import com.wire.bots.broadcast.resource.BroadcastResource;
 import com.wire.bots.broadcast.storage.DbManager;
+import com.wire.bots.sdk.ClientRepo;
 import com.wire.bots.sdk.Logger;
 import com.wire.bots.sdk.MessageHandlerBase;
 import com.wire.bots.sdk.WireClient;
@@ -31,6 +31,7 @@ import com.wire.bots.sdk.assets.Picture;
 import com.wire.bots.sdk.models.ImageMessage;
 import com.wire.bots.sdk.models.TextMessage;
 import com.wire.bots.sdk.server.model.NewBot;
+import com.wire.bots.sdk.server.model.User;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -39,32 +40,41 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
-public class MessageHandler extends MessageHandlerBase {
-    private final DbManager dbManager;
-    private final Timer timer;
-    private final BroadcastResource broadcastResource;
-    private final Config config;
+abstract class BroadcastMessageHandlerBase extends MessageHandlerBase {
+    protected final DbManager dbManager;
+    protected final Timer timer;
+    protected final Config config;
+    protected final Executor executor;
 
-    public MessageHandler(BroadcastResource broadcastResource, Config config) {
-        this.broadcastResource = broadcastResource;
+    protected BroadcastMessageHandlerBase(ClientRepo repo, Config config) {
         this.config = config;
 
-        dbManager = broadcastResource.getDbManager();
+        executor = new Executor(repo, config);
+        dbManager = executor.getDbManager();
         timer = new Timer();
     }
+
+    abstract protected void onNewBroadcast(TextMessage msg) throws Exception;
+
+    abstract protected void onNewBroadcast(ImageMessage msg, byte[] bytes) throws Exception;
+
+    abstract protected void onNewSubscriber(User origin, String locale) throws Exception;
+
+    abstract protected void onNewFeedback(TextMessage msg) throws Exception;
+
+    abstract protected void onNewFeedback(ImageMessage msg) throws Exception;
 
     @Override
     public boolean onNewBot(NewBot newBot) {
         try {
-            Logger.info(String.format("onNewBot: bot: %s, origin: %s", newBot.id, newBot.origin.id));
-
-            if (!isWhiteListed(newBot.origin.id)) {
-                Logger.info(String.format("Rejecting user: %s/%s", newBot.origin.id, newBot.origin.name));
+            User origin = newBot.origin;
+            if (!isWhiteListed(origin.id)) {
+                Logger.info(String.format("Rejecting user: %s/%s", origin.id, origin.name));
                 return false;
             }
             saveNewBot(newBot);
 
-            broadcastResource.newUserFeedback(newBot.origin.name);
+            onNewSubscriber(origin, newBot.locale);
         } catch (Exception e) {
             e.printStackTrace();
             Logger.error(e.getLocalizedMessage());
@@ -78,13 +88,14 @@ public class MessageHandler extends MessageHandlerBase {
             String botId = client.getId();
 
             if (isAdminBot(botId)) {
-                broadcastResource.broadcast(msg);
+                onNewBroadcast(msg);
             } else {
                 saveMessage(botId, msg);
 
-                broadcastResource.forwardFeedback(msg);
+                if (config.isLike())
+                    likeMessage(client, msg.getMessageId());
 
-                likeMessage(client, msg.getMessageId());
+                onNewFeedback(msg);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -99,13 +110,14 @@ public class MessageHandler extends MessageHandlerBase {
 
             if (isAdminBot(botId)) {
                 byte[] bytes = client.downloadAsset(msg.getAssetKey(), msg.getAssetToken(), msg.getSha256(), msg.getOtrKey());
-                broadcastResource.broadcast(msg, bytes);
+                onNewBroadcast(msg, bytes);
             } else {
                 saveMessage(botId, msg);
 
-                broadcastResource.forwardFeedback(msg);
+                if (config.isLike())
+                    likeMessage(client, msg.getMessageId());
 
-                likeMessage(client, msg.getMessageId());
+                onNewFeedback(msg);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -119,7 +131,7 @@ public class MessageHandler extends MessageHandlerBase {
             String label = config.getOnNewSubscriberLabel().replace("[botId]", client.getId());
             client.sendText(label);
 
-            long from = new Date().getTime() - TimeUnit.DAYS.toMillis(config.getFallback());
+            long from = new Date().getTime() - TimeUnit.MINUTES.toMillis(config.getFallback());
             for (Broadcast b : dbManager.getBroadcast(from / 1000)) {
                 if (b.getText() != null) {
                     client.sendText(b.getText());
@@ -137,6 +149,7 @@ public class MessageHandler extends MessageHandlerBase {
                     picture.setAssetToken(b.getToken());
                     picture.setOtrKey(b.getOtrKey());
                     picture.setSha256(b.getSha256());
+                    picture.setExpires(TimeUnit.MINUTES.toMillis(config.getExpiration()));
 
                     client.sendPicture(picture);
                 }
@@ -149,12 +162,12 @@ public class MessageHandler extends MessageHandlerBase {
 
     @Override
     public void onMemberJoin(WireClient client, ArrayList<String> userIds) {
-        broadcastResource.sendOnMemberFeedback("**%s** joined", userIds);
+        executor.sendOnMemberFeedback("**%s** joined", userIds);
     }
 
     @Override
     public void onMemberLeave(WireClient ignored, ArrayList<String> userIds) {
-        broadcastResource.sendOnMemberFeedback("**%s** left", userIds);
+        executor.sendOnMemberFeedback("**%s** left", userIds);
     }
 
     @Override
@@ -166,11 +179,16 @@ public class MessageHandler extends MessageHandlerBase {
         if (msg.hasDeleted()) {
             if (isAdminBot(client.getId())) {
                 Messages.MessageDelete deleted = msg.getDeleted();
-                broadcastResource.deleteBroadcast(deleted.getMessageId());
+                try {
+                    executor.revokeBroadcast(deleted.getMessageId());
+                } catch (SQLException e) {
+                    Logger.error("Error revoking broadcast. " + e.getLocalizedMessage());
+                }
             }
         }
     }
 
+    @Override
     public String getName() {
         return config.getChannelName();
     }

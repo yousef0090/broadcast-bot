@@ -19,79 +19,43 @@ package com.wire.bots.broadcast.resource;
 
 import com.wire.bots.broadcast.Executor;
 import com.wire.bots.broadcast.model.Config;
-import com.wire.bots.broadcast.storage.DbManager;
 import com.wire.bots.sdk.ClientRepo;
 import com.wire.bots.sdk.Logger;
-import com.wire.bots.sdk.WireClient;
 import com.wire.bots.sdk.assets.Picture;
-import com.wire.bots.sdk.models.AssetKey;
-import com.wire.bots.sdk.models.ImageMessage;
-import com.wire.bots.sdk.models.TextMessage;
-import com.wire.bots.sdk.server.model.User;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
-import java.io.File;
-import java.io.FileFilter;
-import java.util.ArrayList;
 import java.util.UUID;
 
 @Path("/broadcast")
 public class BroadcastResource {
     private final ClientRepo repo;
     private final Config conf;
-    private final DbManager dbManager;
 
     public BroadcastResource(ClientRepo repo, Config conf) {
         this.repo = repo;
         this.conf = conf;
-        dbManager = new DbManager(conf.getDatabase());
-    }
-
-    public DbManager getDbManager() {
-        return dbManager;
     }
 
     @GET
     public Response broadcast(@QueryParam("text") final String text) throws Exception {
-        if (text == null) {
-            return Response.
-                    ok("Nothing to broadcast").
-                    status(200).
-                    build();
-        }
-
-        File[] botDirs = getCryptoDirs();
-
-        if (botDirs.length == 0)
-            return Response.
-                    ok("No subscribers yet :(").
-                    status(200).
-                    build();
+        Executor exec = new Executor(repo, conf);
 
         try {
-            Executor exec = new Executor(repo, dbManager);
-
             if (isPicture(text)) {
                 Picture picture = new Picture(text);
 
-                WireClient wireClient = repo.getWireClient(botDirs[0].getName());
-                AssetKey assetKey = wireClient.uploadAsset(picture);
-                picture.setAssetKey(assetKey.key);
-                picture.setAssetToken(assetKey.token);
-
-                exec.broadcastPicture(picture, botDirs);
-            } else if (isUrl(text)) {
-                exec.broadcastUrl(text, botDirs);
+                exec.broadcast(picture);
+            } else if (text.startsWith("http")) {
+                exec.broadcastUrl(text);
             } else {
-                exec.broadcastText(UUID.randomUUID().toString(), text, botDirs);
+                exec.broadcastText(UUID.randomUUID().toString(), text);
             }
 
             return Response.
-                    ok(String.format("Scheduled broadcast for %,d conversations", botDirs.length)).
-                    status(201).
+                    ok().
                     build();
 
         } catch (Exception e) {
@@ -104,132 +68,11 @@ public class BroadcastResource {
         }
     }
 
-    public void broadcast(TextMessage msg) throws Exception {
-        Executor exec = new Executor(repo, dbManager);
-        String text = msg.getText();
-        String messageId = msg.getMessageId();
-
-        File[] botDirs = getCryptoDirs();
-        if (isUrl(text)) {
-            exec.broadcastUrl(text, botDirs);
-        } else {
-            exec.broadcastText(messageId, text, botDirs);
-        }
-    }
-
-    public void broadcast(ImageMessage msg, byte[] imgData) throws Exception {
-        Picture picture = new Picture(imgData, msg.getMimeType());
-        picture.setSize((int) msg.getSize());
-        picture.setWidth(msg.getWidth());
-        picture.setHeight(msg.getHeight());
-        picture.setAssetKey(msg.getAssetKey());
-        picture.setAssetToken(msg.getAssetToken());
-        picture.setOtrKey(msg.getOtrKey());
-        picture.setSha256(msg.getSha256());
-        picture.setMessageId(msg.getMessageId());
-
-        Executor executor = new Executor(repo, dbManager);
-        executor.broadcastPicture(picture, getCryptoDirs());
-    }
-
-    public void forwardFeedback(TextMessage msg) throws Exception {
-        String botId = conf.getAdmin();
-        if (botId == null)
-            return;
-
-        WireClient feedbackClient = repo.getWireClient(botId);
-        ArrayList<String> ids = new ArrayList<>();
-        ids.add(msg.getUserId());
-        for (User user : feedbackClient.getUsers(ids)) {
-            String feedback = String.format("**%s** wrote: _%s_", user.name, msg.getText());
-            feedbackClient.sendText(feedback);
-        }
-    }
-
-    public void forwardFeedback(ImageMessage msg) throws Exception {
-        String botId = conf.getAdmin();
-        if (botId == null)
-            return;
-
-        WireClient feedbackClient = repo.getWireClient(botId);
-        ArrayList<String> ids = new ArrayList<>();
-        ids.add(msg.getUserId());
-        for (User user : feedbackClient.getUsers(ids)) {
-            String feedback = String.format("**%s** sent:", user.name);
-            feedbackClient.sendText(feedback);
-
-            Picture picture = new Picture();
-            picture.setMimeType(msg.getMimeType());
-            picture.setSize((int) msg.getSize());
-            picture.setWidth(msg.getWidth());
-            picture.setHeight(msg.getHeight());
-            picture.setAssetKey(msg.getAssetKey());
-            picture.setAssetToken(msg.getAssetToken());
-            picture.setOtrKey(msg.getOtrKey());
-            picture.setSha256(msg.getSha256());
-
-            feedbackClient.sendPicture(picture);
-        }
-    }
-
-    public void sendOnMemberFeedback(String format, ArrayList<String> userIds) {
-        try {
-            String botId = conf.getAdmin();
-            if (botId != null) {
-                WireClient feedbackClient = repo.getWireClient(botId);
-                for (User user : feedbackClient.getUsers(userIds)) {
-                    String feedback = String.format(format, user.name);
-                    feedbackClient.sendText(feedback);
-                }
-            }
-        } catch (Exception e) {
-            Logger.error(e.getLocalizedMessage());
-        }
-    }
-
-    public void newUserFeedback(String name) throws Exception {
-        String botId = conf.getAdmin();
-        if (botId == null)
-            return;
-
-        WireClient feedbackClient = repo.getWireClient(botId);
-        String feedback = String.format("**%s** just joined", name);
-        feedbackClient.sendText(feedback);
-    }
-
-    private File[] getCryptoDirs() {
-        File dir = new File(conf.cryptoDir);
-        return dir.listFiles(new FileFilter() {
-            @Override
-            public boolean accept(File file) {
-                String botId = file.getName();
-
-                // Don't broadcast to Feedback conv.
-                if (conf.getAdmin() != null && conf.getAdmin().equals(botId))
-                    return false;
-                return botId.split("-").length == 5 && file.isDirectory();
-            }
-        });
-    }
-
-    private static boolean isUrl(String text) {
-        return text.startsWith("http");
-    }
-
     private static boolean isPicture(String text) {
         return text.startsWith("http") && (
                 text.endsWith(".jpg")
                         || text.endsWith(".gif")
                         || text.endsWith(".png"));
-    }
-
-    public void deleteBroadcast(String messageId) {
-        try {
-            Executor executor = new Executor(repo, dbManager);
-            executor.deleteBroadcast(messageId, getCryptoDirs());
-        } catch (Exception e) {
-            Logger.error(e.getLocalizedMessage());
-        }
     }
 }
 
