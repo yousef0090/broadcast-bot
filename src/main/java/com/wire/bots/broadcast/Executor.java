@@ -243,8 +243,7 @@ public class Executor {
             WireClient client = repo.getWireClient(botId);
             client.sendLinkPreview(url, title, img);
         } catch (Exception e) {
-            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
-            Logger.error(msg);
+            Logger.error("Bot: %s. Error: %s", botId, e.getMessage());
         }
     }
 
@@ -253,8 +252,7 @@ public class Executor {
             WireClient client = repo.getWireClient(botId);
             client.sendText(text, 0, messageId);
         } catch (Exception e) {
-            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
-            Logger.error(msg);
+            Logger.error("Bot: %s. Error: %s", botId, e.getMessage());
         }
     }
 
@@ -263,8 +261,7 @@ public class Executor {
             WireClient client = repo.getWireClient(botId);
             client.sendPicture(picture);
         } catch (Exception e) {
-            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
-            Logger.error(msg);
+            Logger.error("Bot: %s. Error: %s", botId, e.getMessage());
         }
     }
 
@@ -304,8 +301,7 @@ public class Executor {
             WireClient client = repo.getWireClient(botId);
             client.deleteMessage(messageId);
         } catch (Exception e) {
-            String msg = String.format("Bot: %s. Error: %s", botId, e.getMessage());
-            Logger.error(msg);
+            Logger.error("Bot: %s. Error: %s", botId, e.getMessage());
         }
     }
 
@@ -315,11 +311,11 @@ public class Executor {
             @Override
             public boolean accept(File file) {
                 String botId = file.getName();
-
-                // Don't broadcast to Feedback conv.
-                if (config.getAdmin() != null && config.getAdmin().equals(botId))
+                // Don't broadcast to Admin Conv.
+                if (botId.equals(config.getAdmin()))
                     return false;
-                return botId.split("-").length == 5 && file.isDirectory();
+
+                return repo.getWireClient(botId) != null;
             }
         });
     }

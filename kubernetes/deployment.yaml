@@ -2,13 +2,13 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: github
+  name: broadcast
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        name: github
+        name: broadcast
     spec:
       restartPolicy: Always
 
@@ -26,33 +26,32 @@ spec:
             - name: AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: github-knows
+                  name: broadcast-knows
                   key: token
 
             - name: APP_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: github-knows
+                  name: broadcast-knows
                   key: app_secret
 
             - name: KEYSTORE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: github-knows
+                  name: broadcast-knows
                   key: keystore_password
 
             - name: ADMIN_CONV
               valueFrom:
                 configMapKeyRef:
-                  name: github-config
+                  name: broadcast-config
                   key: admin
 
-
           volumeMounts:
-            - name: github-disk
+            - name: broadcast-disk
               mountPath: /var/lib/broadcast/crypto
 
-            - name: github-config
+            - name: broadcast-config
               mountPath: /etc/broadcast
 
           command:
@@ -67,23 +66,23 @@ spec:
             - "/etc/broadcast/broadcast.yaml"
 
       volumes:
-        - name: github-disk
+        - name: broadcast-disk
           gcePersistentDisk:
-            pdName: github-disk
+            pdName: broadcast-disk
             fsType: ext4
 
-        - name: github-config
+        - name: broadcast-config
           configMap:
-            name: github-config
+            name: broadcast-config
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: github
+  name: broadcast
 spec:
   selector:
-    name: github
+    name: broadcast
   type: LoadBalancer
   ports:
     - name: https

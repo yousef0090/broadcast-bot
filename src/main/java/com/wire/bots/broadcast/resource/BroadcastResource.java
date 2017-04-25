@@ -21,15 +21,16 @@ import com.wire.bots.broadcast.Executor;
 import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.sdk.ClientRepo;
 import com.wire.bots.sdk.Logger;
+import com.wire.bots.sdk.Util;
 import com.wire.bots.sdk.assets.Picture;
 
-import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 import java.util.UUID;
 
-@Path("/broadcast")
+@Path("/broadcast/v1")
 public class BroadcastResource {
     private final ClientRepo repo;
     private final Config conf;
@@ -39,33 +40,42 @@ public class BroadcastResource {
         this.conf = conf;
     }
 
-    @GET
-    public Response broadcast(@QueryParam("text") final String text) throws Exception {
-        Executor exec = new Executor(repo, conf);
+    @POST
+    public Response broadcast(@HeaderParam("Signature") String signature,
+                              String payload) throws Exception {
+
+        String challenge = Util.getHmacSHA1(payload, conf.getAppSecret());
+        if (!challenge.equals(signature)) {
+            Logger.warning("Invalid Signature.");
+            return Response.
+                    status(403).
+                    build();
+        }
 
         try {
-            if (isPicture(text)) {
-                Picture picture = new Picture(text);
+            Executor exec = new Executor(repo, conf);
+
+            if (isPicture(payload)) {
+                Picture picture = new Picture(payload);
 
                 exec.broadcast(picture);
-            } else if (text.startsWith("http")) {
-                exec.broadcastUrl(text);
+            } else if (payload.startsWith("http")) {
+                exec.broadcastUrl(payload);
             } else {
-                exec.broadcastText(UUID.randomUUID().toString(), text);
+                exec.broadcastText(UUID.randomUUID().toString(), payload);
             }
-
-            return Response.
-                    ok().
-                    build();
-
         } catch (Exception e) {
             e.printStackTrace();
             Logger.error(e.getLocalizedMessage());
             return Response.
-                    ok(String.format("Something went terribly wrong: %s", e.getLocalizedMessage())).
+                    ok("Something went terribly wrong: %s" + e.getLocalizedMessage()).
                     status(500).
                     build();
         }
+
+        return Response.
+                ok().
+                build();
     }
 
     private static boolean isPicture(String text) {

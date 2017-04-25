@@ -20,7 +20,6 @@ package com.wire.bots.broadcast;
 
 import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.broadcast.resource.BroadcastResource;
-import com.wire.bots.broadcast.resource.GitHubResource;
 import com.wire.bots.broadcast.tasks.ListBroadcastsTask;
 import com.wire.bots.broadcast.tasks.ListMessagesTask;
 import com.wire.bots.sdk.MessageHandlerBase;
@@ -40,7 +39,6 @@ public class Service extends Server<Config> {
     @Override
     protected void onRun(Config config, Environment env) {
         addResource(new BroadcastResource(repo, config), env);
-        addResource(new GitHubResource(repo, config), env);
 
         addTask(new ListMessagesTask(config), env);
         addTask(new ListBroadcastsTask(config), env);

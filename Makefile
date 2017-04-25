@@ -12,9 +12,6 @@ all: package runtime build
 package:
 	mvn -Plinux package
 
-build:
-	docker build --tag wire/$(BOT) -f Dockerfile .
-
 .PHONY: runtime
 runtime: $(UNLTD_JCE_POLICY_JARS)
 	docker build --tag wire/bots.runtime -f Dockerfile.runtime .
@@ -56,4 +53,4 @@ rm_dots:
 	-rm -r .metadata
 
 run:
-	java -jar target/$(BOT).jar server $(BOT).yaml
+	java -jar target/$(BOT).jar server conf/$(BOT).yaml
