@@ -1,16 +1,43 @@
 <!DOCTYPE html>
 <!-- Wire, Copyright (C) 2017 Wire Swiss GmbH -->
 <html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Message</title>
-  </head>
 
-  <body>
-    <form action="/broadcast/v1" method="POST">
-      <textarea name="text" id="message" cols="150" rows="20" autofocus required ></textarea>
-      <br>
-      <input type="submit" value="Broadcast">
-    </form>
-  </body>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Message</title>
+  <script type="text/javascript" src="sha1.js"></script>
+</head>
+
+<body>
+  <script>
+    function encrypt() {
+      try {
+        var message = document.getElementById('message').value;
+        document.getElementById('key').disabled = "disabled";
+        var key = document.getElementById('key').value;
+        var shaObj = new jsSHA("SHA-1", "TEXT");
+        shaObj.setHMACKey(key, "TEXT");
+        shaObj.update(message);
+        var hmac = shaObj.getHMAC("HEX");
+        document.getElementById('signature').value = hmac;
+        return true;
+      } catch (e) {
+        console.log("Error: " + e);
+        return false;
+      }
+    }
+  </script>
+  <form onsubmit="return encrypt()" method="POST" action="https://35.187.181.14/broadcast/v1">
+    <textarea name="message" id="message" cols="150" rows="20" autofocus="" required=""></textarea><br />
+    <label for="key">Secret:</label>
+    <input type="text" name="key" id="key" value="" />
+    <input type="hidden" name="signature" value="" id="signature" />
+    <br />
+    <input value="Broadcast" type="submit">
+  </form>
+
+
+</body>
+
 </html>

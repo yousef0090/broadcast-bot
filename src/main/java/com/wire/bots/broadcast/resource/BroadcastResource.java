@@ -24,6 +24,7 @@ import com.wire.bots.sdk.Logger;
 import com.wire.bots.sdk.Util;
 import com.wire.bots.sdk.assets.Picture;
 
+import javax.ws.rs.FormParam;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -41,10 +42,10 @@ public class BroadcastResource {
     }
 
     @POST
-    public Response broadcast(@HeaderParam("Signature") String signature,
-                              String payload) throws Exception {
+    public Response broadcast(@FormParam("signature") String signature,
+                              @FormParam("message") String message) throws Exception {
 
-        String challenge = Util.getHmacSHA1(payload, conf.getAppSecret());
+        String challenge = Util.getHmacSHA1(message, conf.getAppSecret());
         if (!challenge.equals(signature)) {
             Logger.warning("Invalid Signature.");
             return Response.
@@ -55,14 +56,14 @@ public class BroadcastResource {
         try {
             Executor exec = new Executor(repo, conf);
 
-            if (isPicture(payload)) {
-                Picture picture = new Picture(payload);
+            if (isPicture(message)) {
+                Picture picture = new Picture(message);
 
                 exec.broadcast(picture);
-            } else if (payload.startsWith("http")) {
-                exec.broadcastUrl(payload);
+            } else if (message.startsWith("http")) {
+                exec.broadcastUrl(message);
             } else {
-                exec.broadcastText(UUID.randomUUID().toString(), payload);
+                exec.broadcastText(UUID.randomUUID().toString(), message);
             }
         } catch (Exception e) {
             e.printStackTrace();
