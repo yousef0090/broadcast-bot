@@ -18,10 +18,12 @@
 
 package com.wire.bots.broadcast.model;
 
+import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
 
 public class Config extends com.wire.bots.sdk.Configuration {
-    private String database = "crypto/broadcast.db";
+    @NotNull
+    private String database;
     private String admin;
     private ArrayList<String> whitelist;
     private String onNewSubscriberLabel;

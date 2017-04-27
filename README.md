@@ -51,7 +51,7 @@ In order to receive all the incoming messages from the subscribers you can selec
 BotId is printed as first message when subscribing (also visible in logs)
 
 ## How to Broadcast messages
-Go to: http://localhost:8062/assets/message.html and post your first message
+Go to: https://localhost:443/assets/message.html Enter `Secret` (that matches `appSecret` in `broadcast.yaml`)and post your first message
 Alternatively: posting into Admin Conversation would broadcast the message to all subscribers
 
 ## List all Incoming Messages and Broadcasts
