@@ -198,8 +198,10 @@ public class Executor {
         if (!hasAdminConv()) return;
 
         WireClient feedbackClient = repo.getWireClient(config.getAdmin());
-        String feedback = String.format("**%s** just joined", name);
-        feedbackClient.sendText(feedback);
+        if (feedbackClient != null) {
+            String feedback = String.format("**%s** just joined", name);
+            feedbackClient.sendText(feedback);
+        }
     }
 
     private void broadcastPicture(final Picture picture) {
