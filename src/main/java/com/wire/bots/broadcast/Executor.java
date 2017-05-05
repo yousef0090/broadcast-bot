@@ -201,6 +201,8 @@ public class Executor {
         if (feedbackClient != null) {
             String feedback = String.format("**%s** just joined", name);
             feedbackClient.sendText(feedback);
+        } else {
+            Logger.info("Admin is not specified for this broadcast bot");
         }
     }
 
