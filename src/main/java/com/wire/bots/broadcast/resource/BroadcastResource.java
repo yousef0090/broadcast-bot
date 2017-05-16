@@ -18,6 +18,7 @@
 package com.wire.bots.broadcast.resource;
 
 import com.wire.bots.broadcast.Executor;
+import com.wire.bots.broadcast.model.BroadcastMessage;
 import com.wire.bots.broadcast.model.Config;
 import com.wire.bots.sdk.ClientRepo;
 import com.wire.bots.sdk.Logger;
@@ -42,11 +43,11 @@ public class BroadcastResource {
     }
 
     @POST
-    public Response broadcast(@FormParam("signature") String signature,
-                              @FormParam("message") String message) throws Exception {
+    public Response broadcast(BroadcastMessage broadcastMessage) throws Exception {
 
+        String message = broadcastMessage.getMessage();
         String challenge = Util.getHmacSHA1(message, conf.getAppSecret());
-        if (!challenge.equals(signature)) {
+        if (!challenge.equals(broadcastMessage.getSignature())) {
             Logger.warning("Invalid Signature.");
             return Response.
                     status(403).
@@ -63,7 +64,7 @@ public class BroadcastResource {
             } else if (message.startsWith("http")) {
                 exec.broadcastUrl(message);
             } else {
-                exec.broadcastText(UUID.randomUUID().toString(), message);
+                exec.broadcastText(UUID.randomUUID().toString(), handleNewLines(message));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -84,6 +85,10 @@ public class BroadcastResource {
                 text.endsWith(".jpg")
                         || text.endsWith(".gif")
                         || text.endsWith(".png"));
+    }
+
+    private static String handleNewLines(String text) {
+        return text.replaceAll("\\n", "\n");
     }
 }
 

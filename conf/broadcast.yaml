@@ -21,7 +21,7 @@ cryptoDir: '/var/lib/broadcast/crypto'              # path to dir where to story
 database: '/var/lib/broadcast/crypto/broadcast.db'  # path to db file
 auth: "your_auth_token"        # obtained from DevBot
 appSecret: "your_secret"       # You will be asked for this secret when using message.html to broadcast
-admin:                         # BotId to be used to channel the messages received from the users
+admin: "conversation_id"       # BotId to be used to channel the messages received from the users
 fallback: 60                   # Number of minutes to fallback when fetching broadcasts for new subscribers
 like: false                    # Like every message sent by subscriber
 expiration: 0                  # minutes
