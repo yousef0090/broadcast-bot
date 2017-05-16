@@ -29,7 +29,6 @@ import com.wire.bots.sdk.models.AssetKey;
 import com.wire.bots.sdk.models.ImageMessage;
 import com.wire.bots.sdk.models.TextMessage;
 import com.wire.bots.sdk.server.model.User;
-import com.wire.cryptobox.CryptoException;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -317,17 +316,10 @@ public class Executor {
             public boolean accept(File file) {
                 String botId = file.getName();
                 // Don't broadcast to Admin Conv.
-                if (botId.equals(config.getAdmin()))
+                if (botId.equals(config.getAdmin())) {
                     return false;
-
-                try {
-                    return repo.getWireClient(botId) != null;
-                } catch (CryptoException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
                 }
-                return false;
+                return repo.getWireClient(botId) != null;
             }
         });
     }
