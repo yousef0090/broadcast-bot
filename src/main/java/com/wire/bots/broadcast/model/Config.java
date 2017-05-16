@@ -18,9 +18,12 @@
 
 package com.wire.bots.broadcast.model;
 
+import lombok.Data;
+
 import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
 
+@Data
 public class Config extends com.wire.bots.sdk.Configuration {
     @NotNull
     private String database;
@@ -32,44 +35,4 @@ public class Config extends com.wire.bots.sdk.Configuration {
     private boolean like = true;
     private long expiration;
     private String appSecret;
-
-    public String getDatabase() {
-        return database;
-    }
-
-    public String getAdmin() {
-        return admin;
-    }
-
-    public ArrayList<String> getWhitelist() {
-        return whitelist;
-    }
-
-    public String getOnNewSubscriberLabel() {
-        return onNewSubscriberLabel;
-    }
-
-    public long getFallback() {
-        return fallback;
-    }
-
-    public String getChannelName() {
-        return channelName;
-    }
-
-    public boolean isLike() {
-        return like;
-    }
-
-    public long getExpiration() {
-        return expiration;
-    }
-
-    public void setExpiration(long expiration) {
-        this.expiration = expiration;
-    }
-
-    public String getAppSecret() {
-        return appSecret;
-    }
 }

@@ -29,6 +29,7 @@ import com.wire.bots.sdk.models.AssetKey;
 import com.wire.bots.sdk.models.ImageMessage;
 import com.wire.bots.sdk.models.TextMessage;
 import com.wire.bots.sdk.server.model.User;
+import com.wire.cryptobox.CryptoException;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -319,7 +320,14 @@ public class Executor {
                 if (botId.equals(config.getAdmin()))
                     return false;
 
-                return repo.getWireClient(botId) != null;
+                try {
+                    return repo.getWireClient(botId) != null;
+                } catch (CryptoException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                return false;
             }
         });
     }
